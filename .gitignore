@@ -1,0 +1,61 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+
+## Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+[Bb]ld/
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+## Test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+.coverlet/
+
+## EF Core
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+
+## Tooling
+.dotnet/
+*.tsbuildinfo
+
+## Secrets / local
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+*.env
+.env*
+!.env.example
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Logs
+*.log
+logs/
+
+## Node (for any front-end tooling later)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

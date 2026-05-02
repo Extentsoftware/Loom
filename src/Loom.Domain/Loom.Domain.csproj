@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Loom.Domain</RootNamespace>
+    <AssemblyName>Loom.Domain</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Loom.Domain.Tests" />
+  </ItemGroup>
+
+</Project>

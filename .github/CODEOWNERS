@@ -1,0 +1,20 @@
+# CODEOWNERS — review responsibility for parts of the Loom repo.
+# Add @-handles when contributors are onboarded.
+#
+# The intent: everyone reviews the broad surface; specific areas have
+# steering owners who must approve changes that reshape them.
+
+*                              @loom/team
+
+src/Loom.Domain/               @loom/architects
+docs/adr/                      @loom/architects
+docs/design/                   @loom/architects
+
+src/Loom.Application/Abstractions/  @loom/architects
+src/Loom.Infrastructure/Persistence/Migrations/  @loom/architects
+
+CLAUDE.md                      @loom/methodology
+.cursorrules                   @loom/methodology
+
+.github/workflows/             @loom/devops
+deploy/                        @loom/devops

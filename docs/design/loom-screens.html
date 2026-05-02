@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loom — Screen Drafts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0c0a;
+  --surface: #181614;
+  --surface-2: #211e1a;
+  --surface-3: #2a2622;
+  --border: #2a2622;
+  --border-2: #3a352e;
+  --text: #ece8e1;
+  --text-2: #a59e92;
+  --text-3: #6b655c;
+  --accent: #d4ed5b;
+  --accent-dim: #a8be3e;
+  --amber: #e8a548;
+  --cyan: #6ec8d6;
+  --sage: #8db870;
+  --coral: #e87158;
+  --violet: #b89ce0;
+
+  --display: 'Fraunces', Georgia, serif;
+  --body: 'Manrope', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Page chrome */
+.page {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 80px 40px 120px;
+}
+.page-head {
+  margin-bottom: 80px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--border);
+}
+.page-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-3);
+  margin-bottom: 16px;
+}
+.page-title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 72px;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+}
+.page-title em { font-style: italic; color: var(--accent); }
+.page-sub {
+  font-size: 17px;
+  color: var(--text-2);
+  max-width: 720px;
+  line-height: 1.55;
+}
+
+.screen-wrap {
+  margin-bottom: 120px;
+}
+.screen-label {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.screen-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+}
+.screen-name {
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.screen-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: auto;
+  letter-spacing: 0.05em;
+}
+.screen {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ─────────── shared chrome inside screens ─────────── */
+.app-nav {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  gap: 24px;
+}
+.brand {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.brand::after {
+  content: '·';
+  color: var(--accent);
+  margin-left: 6px;
+}
+.proj-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  padding: 5px 10px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+.proj-pill .dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.nav-search {
+  flex: 1;
+  max-width: 480px;
+  padding: 7px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+}
+.nav-search::before { content: '⌕  '; }
+.nav-actions { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+.nav-link {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--amber), var(--coral));
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ─────────────── Screen 1 — Operating Picture ─────────────── */
+.s1-body {
+  display: grid;
+  grid-template-columns: 240px 1fr 340px;
+  height: 880px;
+}
+.s1-side {
+  border-right: 1px solid var(--border);
+  padding: 24px 20px;
+}
+.s1-side h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-3);
+  margin-bottom: 12px;
+}
+.s1-filter {
+  font-size: 13px;
+  padding: 6px 0;
+  color: var(--text-2);
+  display: flex;
+  justify-content: space-between;
+}
+.s1-filter.active { color: var(--text); font-weight: 500; }
+.s1-filter .count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.s1-filter-group { margin-bottom: 28px; }
+.phase-tag {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.phase-discovery { background: var(--violet); }
+.phase-enrich { background: var(--cyan); }
+.phase-build { background: var(--accent); }
+.phase-test { background: var(--amber); }
+.phase-done { background: var(--sage); }
+
+.s1-main {
+  padding: 32px 36px;
+  overflow-y: auto;
+}
+.s1-h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 36px;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.s1-h1 em { font-style: italic; color: var(--accent); }
+.s1-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+  margin-bottom: 32px;
+}
+.s1-meta span { margin-right: 20px; }
+
+.tree-init {
+  margin-bottom: 32px;
+  padding: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.init-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+.init-type {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+}
+.init-title {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.init-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: auto;
+}
+.init-intent {
+  color: var(--text-2);
+  font-size: 13px;
+  margin-bottom: 18px;
+  max-width: 640px;
+}
+
+.tree {
+  border-left: 1px solid var(--border-2);
+  margin-left: 8px;
+  padding-left: 0;
+}
+.tree-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0 10px 16px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.tree-row:last-child { border-bottom: none; }
+.tree-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  width: 12px; height: 1px;
+  background: var(--border-2);
+}
+.tree-row.depth-2 { padding-left: 40px; }
+.tree-row.depth-2::before { left: 24px; width: 12px; }
+.tree-icon {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.tree-title {
+  font-size: 14px;
+  color: var(--text);
+}
+.tree-title.muted { color: var(--text-2); font-size: 13px; }
+.tree-pulse {
+  display: flex;
+  gap: 3px;
+}
+.pulse-dot {
+  width: 4px; height: 12px;
+  background: var(--border-2);
+  border-radius: 1px;
+}
+.pulse-dot.on { background: var(--accent); }
+.pulse-dot.warm { background: var(--amber); }
+.pulse-dot.cool { background: var(--cyan); }
+.tree-owner {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+.av-anna { background: linear-gradient(135deg, #e8a548, #e87158); color: var(--bg); }
+.av-jules { background: linear-gradient(135deg, #6ec8d6, #b89ce0); color: var(--bg); }
+.av-matt { background: linear-gradient(135deg, #8db870, #d4ed5b); color: var(--bg); }
+.av-priya { background: linear-gradient(135deg, #b89ce0, #e87158); color: var(--bg); }
+.av-tom { background: linear-gradient(135deg, #d4ed5b, #e8a548); color: var(--bg); }
+
+.tree-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.tree-status.active { color: var(--cyan); }
+.tree-status.gate { color: var(--amber); }
+.tree-status.done { color: var(--sage); }
+
+.s1-rail {
+  border-left: 1px solid var(--border);
+  padding: 24px 20px;
+  background: var(--bg);
+  overflow-y: auto;
+}
+.rail-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 18px;
+}
+.rail-h h3 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+.rail-live {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+.rail-live::before {
+  content: '●';
+  margin-right: 4px;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.run-card {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.run-card:last-of-type { border: none; }
+.run-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.run-step {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.run-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+.run-target {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.run-engine {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+.run-engine .e {
+  color: var(--cyan);
+}
+.run-engine.foundry .e { color: var(--amber); }
+.run-engine.cc .e { color: var(--accent); }
+.run-bar {
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.run-bar > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--accent));
+  width: 64%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+@keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+/* ─────────────── Screen 2 — Feature Workspace ─────────────── */
+.s2-body { display: grid; grid-template-columns: 1fr 360px; height: 920px; }
+.s2-main { padding: 0; overflow-y: auto; }
+.s2-head {
+  padding: 32px 40px 28px;
+  border-bottom: 1px solid var(--border);
+}
+.crumb {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+  margin-bottom: 20px;
+}
+.crumb a { color: var(--text-2); }
+.crumb .sep { margin: 0 8px; color: var(--text-3); }
+.s2-title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 44px;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.s2-title em { font-style: italic; color: var(--accent); }
+.s2-headmeta {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+.phase-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 3px;
+  background: rgba(110, 200, 214, 0.12);
+  color: var(--cyan);
+  border: 1px solid rgba(110, 200, 214, 0.3);
+}
+.headmeta-item {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+.headmeta-item span { color: var(--text-2); }
+
+.s2-section {
+  padding: 32px 40px;
+  border-bottom: 1px solid var(--border);
+}
+.s2-section h3 {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-3);
+  margin-bottom: 18px;
+}
+.intent-text {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.4;
+  color: var(--text);
+  letter-spacing: -0.005em;
+  max-width: 720px;
+}
+
+.outcome-list { display: grid; gap: 14px; }
+.outcome {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px dashed var(--border);
+}
+.outcome:first-child { border-top: 1px solid var(--border); }
+.outcome-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+.outcome-text { font-size: 14px; color: var(--text); }
+.outcome-metric {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.children-grid { display: grid; gap: 1px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.child {
+  background: var(--surface);
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+.child:hover { background: var(--surface-2); }
+.child-title {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.child-intent {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.4;
+  max-width: 460px;
+}
+.child-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.child-pill {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 3px 7px;
+  border: 1px solid var(--border-2);
+  border-radius: 2px;
+}
+.child-pill.gate { color: var(--amber); border-color: rgba(232, 165, 72, 0.4); }
+.child-pill.run { color: var(--cyan); border-color: rgba(110, 200, 214, 0.4); }
+.child-pill.done { color: var(--sage); border-color: rgba(141, 184, 112, 0.4); }
+.child-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.s2-rail {
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  overflow-y: auto;
+}
+.rail-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.rail-tab {
+  flex: 1;
+  padding: 14px 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.rail-tab.on { color: var(--text); border-bottom: 1px solid var(--accent); }
+
+.rail-section { padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.rail-section h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 14px;
+  display: flex; justify-content: space-between;
+}
+.rail-section h4 .add { color: var(--accent); }
+
+.artifact-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+}
+.art-icon {
+  width: 28px; height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--text-2);
+}
+.art-icon.fig { color: var(--violet); }
+.art-icon.code { color: var(--accent); }
+.art-icon.doc { color: var(--cyan); }
+.art-icon.test { color: var(--amber); }
+.art-name { font-size: 12px; color: var(--text); }
+.art-meta { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+.art-ver { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+
+.conv-msg { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.conv-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.conv-author {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.conv-author.agent { color: var(--accent); }
+.conv-time { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+.conv-body { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+
+/* ─────────────── Screen 3 — Kickoff PO Gate ─────────────── */
+.s3-head {
+  padding: 24px 40px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+}
+.s3-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--text-3);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.s3-eyebrow .kick {
+  color: var(--accent);
+  margin-right: 12px;
+}
+.s3-title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 32px;
+  letter-spacing: -0.01em;
+}
+.s3-title em { font-style: italic; color: var(--accent); }
+
+.frag-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 540px;
+  justify-content: flex-end;
+}
+.frag-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-2);
+  border-radius: 2px;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+}
+.frag-chip.identity { color: var(--accent); border-color: rgba(212, 237, 91, 0.3); }
+.frag-chip.method { color: var(--cyan); border-color: rgba(110, 200, 214, 0.3); }
+.frag-chip.skill { color: var(--amber); border-color: rgba(232, 165, 72, 0.3); }
+.frag-chip.domain { color: var(--violet); border-color: rgba(184, 156, 224, 0.3); }
+
+.s3-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  height: 820px;
+}
+.s3-pane {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.s3-pane:last-child { border-right: none; }
+.pane-head {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.pane-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.pane-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+.pane-body { flex: 1; padding: 24px; overflow-y: auto; }
+
+.transcript-turn {
+  margin-bottom: 18px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-2);
+}
+.transcript-turn.highlighted {
+  border-left-color: var(--accent);
+  background: rgba(212, 237, 91, 0.04);
+  padding: 8px 12px;
+  margin-left: -12px;
+  padding-left: 12px;
+  border-radius: 0 3px 3px 0;
+}
+.tt-head {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+  align-items: baseline;
+}
+.tt-speaker {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 500;
+}
+.tt-role {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+.tt-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  margin-left: auto;
+}
+.tt-body { font-size: 13px; color: var(--text-2); line-height: 1.55; }
+.topic-marker {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 18px 0;
+  text-align: center;
+}
+
+.disc-field { margin-bottom: 22px; }
+.disc-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.disc-value {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.disc-value.italic {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.disc-list { display: grid; gap: 6px; }
+.disc-item {
+  font-size: 12px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  display: flex;
+  gap: 10px;
+}
+.disc-item .num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.disc-item .meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.disc-item.dissent { border-left: 2px solid var(--coral); }
+.disc-item.dissent .meta { color: var(--coral); }
+
+.tree-prop { display: grid; gap: 8px; }
+.prop-card {
+  padding: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: grab;
+}
+.prop-card.deeper { margin-left: 24px; padding: 10px 14px; }
+.prop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.prop-type {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.prop-type.cap { color: var(--cyan); }
+.prop-type.slice { color: var(--accent); }
+.prop-actions {
+  display: flex; gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+.prop-actions span:hover { color: var(--text); cursor: pointer; }
+.prop-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.prop-intent { font-size: 11px; color: var(--text-2); line-height: 1.4; }
+.prop-q {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+
+.s3-foot {
+  padding: 18px 40px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.foot-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+.foot-meta span { color: var(--text-2); }
+.foot-actions { display: flex; gap: 12px; }
+.btn {
+  padding: 9px 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ─────────────── Screen 4 — Fragment Library ─────────────── */
+.s4-body { display: grid; grid-template-columns: 240px 1fr 460px; height: 880px; }
+.s4-side { border-right: 1px solid var(--border); padding: 28px 20px; }
+.s4-side h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-3);
+  margin-bottom: 14px;
+}
+.cat-list { margin-bottom: 28px; }
+.cat-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 10px;
+  padding: 7px 0;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.cat-row.on { color: var(--text); font-weight: 500; }
+.cat-swatch {
+  width: 8px; height: 8px;
+  border-radius: 2px;
+}
+.cat-swatch.identity { background: var(--accent); }
+.cat-swatch.method { background: var(--cyan); }
+.cat-swatch.project { background: var(--violet); }
+.cat-swatch.domain { background: var(--amber); }
+.cat-swatch.skill { background: var(--sage); }
+.cat-swatch.feedback { background: var(--coral); }
+.cat-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.scope-tag {
+  display: block;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--text-2);
+  display: flex;
+  justify-content: space-between;
+}
+.scope-tag .c { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+
+.s4-main { overflow-y: auto; }
+.s4-head {
+  padding: 28px 32px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.s4-h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 32px;
+  letter-spacing: -0.01em;
+}
+.s4-h1 em { font-style: italic; color: var(--accent); }
+.s4-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+
+.frag-table {
+  padding: 0;
+}
+.frag-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 100px 80px 100px;
+  gap: 16px;
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  cursor: pointer;
+}
+.frag-row:hover { background: var(--surface-2); }
+.frag-row.on { background: var(--surface-2); border-left: 2px solid var(--accent); padding-left: 30px; }
+.frag-key {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.frag-key .cat-prefix { color: var(--text-3); }
+.frag-desc { font-size: 12px; color: var(--text-2); line-height: 1.4; max-width: 540px; }
+.frag-cell {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
+}
+.frag-cell.scope-g { color: var(--violet); }
+.frag-cell.scope-p { color: var(--cyan); }
+.frag-cell.scope-n { color: var(--amber); }
+.frag-cell.high { color: var(--accent); }
+
+.s4-detail {
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  overflow-y: auto;
+}
+.det-head { padding: 24px 28px 20px; border-bottom: 1px solid var(--border); }
+.det-cat {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.det-title {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+}
+.det-key {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 16px;
+}
+.det-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 7px;
+  border: 1px solid var(--border-2);
+  border-radius: 2px;
+  color: var(--text-2);
+}
+
+.det-section { padding: 22px 28px; border-bottom: 1px solid var(--border); }
+.det-section h4 {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-3);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+.frag-content {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--surface);
+  padding: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+}
+
+.ver-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 12px;
+  border-bottom: 1px dashed var(--border);
+}
+.ver-row:last-child { border: none; }
+.ver-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.ver-num.old { color: var(--text-3); }
+.ver-note { color: var(--text-2); }
+.ver-when { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+
+.usage-stat {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.usage-stat .v {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.footnote {
+  margin-top: 80px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+.footnote em { color: var(--accent); font-style: normal; }
+
+/* responsive: collapse to single column on small viewports */
+@media (max-width: 1100px) {
+  .s1-body, .s2-body, .s3-body, .s4-body {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .s1-side, .s1-rail, .s2-rail, .s4-side, .s4-detail, .s3-pane {
+    border-right: none;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="page-head">
+    <div class="page-eyebrow">Loom · Working name · Screen drafts v0.1</div>
+    <h1 class="page-title">A methodology hub<br>for <em>AI-augmented</em> teams.</h1>
+    <p class="page-sub">Four screens, drafted for review. The design language is editorial-technical — warm dark canvas, serif display, sharp citron accent — chosen to signal a thinking tool, not another dashboard. Every element on this page is rendered HTML; the team can fork, recolour, or rebuild any of it.</p>
+  </header>
+
+  <!-- ═════════════════ SCREEN 1: Operating Picture ═════════════════ -->
+  <section class="screen-wrap">
+    <div class="screen-label">
+      <span class="screen-num">01 / 04</span>
+      <h2 class="screen-name">Operating Picture</h2>
+      <span class="screen-tag">/ home · all-roles</span>
+    </div>
+    <div class="screen">
+      <nav class="app-nav">
+        <span class="brand">Loom</span>
+        <span class="proj-pill"><span class="dot"></span>retail-web · main</span>
+        <input class="nav-search" type="text" value="search nodes, fragments, runs…">
+        <div class="nav-actions">
+          <span class="nav-link">Library</span>
+          <span class="nav-link">Workflows</span>
+          <span class="nav-link">Activity</span>
+          <div class="avatar">AN</div>
+        </div>
+      </nav>
+      <div class="s1-body">
+
+        <aside class="s1-side">
+          <div class="s1-filter-group">
+            <h4>View</h4>
+            <div class="s1-filter active">Tree <span class="count">·</span></div>
+            <div class="s1-filter">Timeline</div>
+            <div class="s1-filter">Map</div>
+          </div>
+          <div class="s1-filter-group">
+            <h4>Phase</h4>
+            <div class="s1-filter"><span class="phase-tag phase-discovery"></span>Discovery <span class="count">3</span></div>
+            <div class="s1-filter"><span class="phase-tag phase-enrich"></span>Enrich <span class="count">5</span></div>
+            <div class="s1-filter active"><span class="phase-tag phase-build"></span>Build <span class="count">8</span></div>
+            <div class="s1-filter"><span class="phase-tag phase-test"></span>Test <span class="count">2</span></div>
+            <div class="s1-filter"><span class="phase-tag phase-done"></span>Done <span class="count">14</span></div>
+          </div>
+          <div class="s1-filter-group">
+            <h4>Owner</h4>
+            <div class="s1-filter">Anna (PO) <span class="count">7</span></div>
+            <div class="s1-filter">Jules (UX) <span class="count">4</span></div>
+            <div class="s1-filter">Matt (Dev) <span class="count">9</span></div>
+            <div class="s1-filter">Priya (Lead) <span class="count">6</span></div>
+            <div class="s1-filter">Tom (QA) <span class="count">3</span></div>
+          </div>
+          <div class="s1-filter-group">
+            <h4>Recent</h4>
+            <div class="s1-filter">Last 24h <span class="count">12</span></div>
+            <div class="s1-filter">Last 7d <span class="count">28</span></div>
+            <div class="s1-filter">Stale (14d+) <span class="count">3</span></div>
+          </div>
+        </aside>
+
+        <main class="s1-main">
+          <h1 class="s1-h1">Operating <em>picture</em></h1>
+          <p class="s1-meta">
+            <span>32 nodes</span><span>4 active runs</span><span>2 awaiting review</span><span>updated 14:02</span>
+          </p>
+
+          <div class="tree-init">
+            <div class="init-head">
+              <span class="init-type">Initiative</span>
+              <span class="init-title">Checkout 2026</span>
+              <span class="init-meta">target Q3 · reduce abandonment 15%</span>
+            </div>
+            <p class="init-intent">Lift completion on cart-to-confirmation by removing friction for returning users and clarifying the path for guests, without compromising PCI scope.</p>
+
+            <div class="tree">
+              <div class="tree-row">
+                <span class="tree-icon">FEAT</span>
+                <span class="tree-title">Express checkout flow</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot warm"></span><span class="pulse-dot"></span><span class="pulse-dot"></span></span>
+                <div class="tree-owner av-anna">AN</div>
+                <span class="tree-status active">enriching · 3 runs</span>
+              </div>
+              <div class="tree-row depth-2">
+                <span class="tree-icon">CAP</span>
+                <span class="tree-title muted">One-click reorder for returning users</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot warm"></span><span class="pulse-dot"></span></span>
+                <div class="tree-owner av-matt">MT</div>
+                <span class="tree-status active">build</span>
+              </div>
+              <div class="tree-row depth-2">
+                <span class="tree-icon">CAP</span>
+                <span class="tree-title muted">Saved card surfacing on cart</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot warm"></span><span class="pulse-dot"></span><span class="pulse-dot"></span></span>
+                <div class="tree-owner av-jules">JU</div>
+                <span class="tree-status gate">UX gate · 2h</span>
+              </div>
+              <div class="tree-row depth-2">
+                <span class="tree-icon">CAP</span>
+                <span class="tree-title muted">CVV revalidation step</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot warm"></span><span class="pulse-dot"></span><span class="pulse-dot"></span><span class="pulse-dot"></span></span>
+                <div class="tree-owner av-priya">PR</div>
+                <span class="tree-status">discovery</span>
+              </div>
+
+              <div class="tree-row">
+                <span class="tree-icon">FEAT</span>
+                <span class="tree-title">Saved payment methods</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot warm"></span></span>
+                <div class="tree-owner av-matt">MT</div>
+                <span class="tree-status active">test</span>
+              </div>
+              <div class="tree-row">
+                <span class="tree-icon">FEAT</span>
+                <span class="tree-title">Guest checkout improvements</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot warm"></span><span class="pulse-dot"></span><span class="pulse-dot"></span><span class="pulse-dot"></span></span>
+                <div class="tree-owner av-anna">AN</div>
+                <span class="tree-status">enrich</span>
+              </div>
+              <div class="tree-row">
+                <span class="tree-icon">FEAT</span>
+                <span class="tree-title">Address validation refresh</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot on"></span></span>
+                <div class="tree-owner av-tom">TM</div>
+                <span class="tree-status done">done · merged</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tree-init">
+            <div class="init-head">
+              <span class="init-type">Initiative</span>
+              <span class="init-title">Search relevance overhaul</span>
+              <span class="init-meta">target Q4 · ES upgrade + ranking</span>
+            </div>
+            <p class="init-intent">Improve product discovery for long-tail queries by re-indexing with synonyms and re-ranking by behavioural signals from MSSQL telemetry.</p>
+            <div class="tree">
+              <div class="tree-row">
+                <span class="tree-icon">FEAT</span>
+                <span class="tree-title">Synonym dictionary ingestion</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot warm"></span><span class="pulse-dot"></span><span class="pulse-dot"></span><span class="pulse-dot"></span></span>
+                <div class="tree-owner av-priya">PR</div>
+                <span class="tree-status">discovery</span>
+              </div>
+              <div class="tree-row">
+                <span class="tree-icon">FEAT</span>
+                <span class="tree-title">Behavioural ranker v2</span>
+                <span class="tree-pulse"><span class="pulse-dot on"></span><span class="pulse-dot on"></span><span class="pulse-dot warm"></span><span class="pulse-dot"></span><span class="pulse-dot"></span></span>
+                <div class="tree-owner av-matt">MT</div>
+                <span class="tree-status active">enrich · 1 run</span>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="s1-rail">
+          <div class="rail-h">
+            <h3>Live runs</h3>
+            <span class="rail-live">3 ACTIVE</span>
+          </div>
+
+          <div class="run-card">
+            <div class="run-row">
+              <span class="run-step">enrich.acceptance_criteria</span>
+              <span class="run-time">2m 14s</span>
+            </div>
+            <div class="run-target">on · CAP/saved-card-surfacing</div>
+            <div class="run-engine"><span class="e">●</span> anthropic · sonnet · 14k ctx</div>
+            <div class="run-bar"><div></div></div>
+          </div>
+
+          <div class="run-card">
+            <div class="run-row">
+              <span class="run-step">enrich.wireframe</span>
+              <span class="run-time">42s</span>
+            </div>
+            <div class="run-target">on · CAP/saved-card-surfacing</div>
+            <div class="run-engine cc"><span class="e">●</span> claude-code · headless · fs+bash</div>
+            <div class="run-bar"><div style="width: 28%"></div></div>
+          </div>
+
+          <div class="run-card">
+            <div class="run-row">
+              <span class="run-step">memory.weekly_digest</span>
+              <span class="run-time">8s</span>
+            </div>
+            <div class="run-target">scope · project</div>
+            <div class="run-engine foundry"><span class="e">●</span> foundry · gpt-4o-mini</div>
+            <div class="run-bar"><div style="width: 88%"></div></div>
+          </div>
+
+          <div class="rail-h" style="margin-top: 32px">
+            <h3>Awaiting you</h3>
+            <span class="rail-live" style="color: var(--amber)">2 GATES</span>
+          </div>
+
+          <div class="run-card">
+            <div class="run-row">
+              <span class="run-step">ux.gate</span>
+              <span class="run-time">2h ago</span>
+            </div>
+            <div class="run-target">3 wireframes for saved-card-surfacing</div>
+            <div class="run-engine"><span style="color: var(--amber)">●</span> waiting · Jules</div>
+          </div>
+
+          <div class="run-card">
+            <div class="run-row">
+              <span class="run-step">po.gate</span>
+              <span class="run-time">5h ago</span>
+            </div>
+            <div class="run-target">Decomposition for cvv-revalidation</div>
+            <div class="run-engine"><span style="color: var(--amber)">●</span> waiting · Anna</div>
+          </div>
+
+          <div class="rail-h" style="margin-top: 32px">
+            <h3>Recently complete</h3>
+          </div>
+          <div class="run-card">
+            <div class="run-row">
+              <span class="run-step">build.merge</span>
+              <span class="run-time">1h ago</span>
+            </div>
+            <div class="run-target">FEAT/address-validation</div>
+            <div class="run-engine"><span style="color: var(--sage)">●</span> ado · pipeline #421 ✓</div>
+          </div>
+          <div class="run-card">
+            <div class="run-row">
+              <span class="run-step">enrich.test_plan</span>
+              <span class="run-time">3h ago</span>
+            </div>
+            <div class="run-target">CAP/one-click-reorder</div>
+            <div class="run-engine"><span style="color: var(--sage)">●</span> anthropic · 12 cases drafted</div>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════ SCREEN 2: Feature Workspace ═════════════════ -->
+  <section class="screen-wrap">
+    <div class="screen-label">
+      <span class="screen-num">02 / 04</span>
+      <h2 class="screen-name">Feature Workspace</h2>
+      <span class="screen-tag">/ node detail · all-roles</span>
+    </div>
+    <div class="screen">
+      <nav class="app-nav">
+        <span class="brand">Loom</span>
+        <span class="proj-pill"><span class="dot"></span>retail-web · main</span>
+        <input class="nav-search" type="text" value="search nodes, fragments, runs…">
+        <div class="nav-actions">
+          <span class="nav-link">Library</span>
+          <span class="nav-link">Workflows</span>
+          <span class="nav-link">Activity</span>
+          <div class="avatar">AN</div>
+        </div>
+      </nav>
+      <div class="s2-body">
+
+        <main class="s2-main">
+          <div class="s2-head">
+            <div class="crumb">
+              <a>retail-web</a><span class="sep">›</span>
+              <a>Checkout 2026</a><span class="sep">›</span>
+              <a>Express checkout flow</a><span class="sep">›</span>
+              <span style="color: var(--text)">Saved card surfacing on cart</span>
+            </div>
+            <h1 class="s2-title">Saved card surfacing <em>on cart</em></h1>
+            <div class="s2-headmeta">
+              <span class="phase-pill">enrich</span>
+              <span class="headmeta-item">type · <span>capability</span></span>
+              <span class="headmeta-item">owner · <span>Jules (UX)</span></span>
+              <span class="headmeta-item">last update · <span>14m ago</span></span>
+              <span class="headmeta-item">runs · <span>7 total</span></span>
+            </div>
+          </div>
+
+          <div class="s2-section">
+            <h3>Intent</h3>
+            <p class="intent-text">Returning users who already have a tokenized card on file should see it surfaced as the default on the cart page, so the path to confirmation collapses to a single click — without changing PCI scope or breaking guest flows.</p>
+          </div>
+
+          <div class="s2-section">
+            <h3>Outcomes</h3>
+            <div class="outcome-list">
+              <div class="outcome">
+                <span class="outcome-num">01</span>
+                <span class="outcome-text">Returning users with saved cards complete checkout in fewer than three clicks.</span>
+                <span class="outcome-metric">≤ 3 clicks · measured</span>
+              </div>
+              <div class="outcome">
+                <span class="outcome-num">02</span>
+                <span class="outcome-text">Cart-to-confirmation conversion lifts measurably for the saved-card cohort.</span>
+                <span class="outcome-metric">+8% · target</span>
+              </div>
+              <div class="outcome">
+                <span class="outcome-num">03</span>
+                <span class="outcome-text">No regression to guest-flow conversion or to PCI audit boundary.</span>
+                <span class="outcome-metric">guard · invariant</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="s2-section">
+            <h3>Slices · 3 of 4 ready</h3>
+            <div class="children-grid">
+              <div class="child">
+                <div>
+                  <div class="child-title">Card list component</div>
+                  <p class="child-intent">Compact list of tokenized cards with last-four, brand glyph, expiry. Default highlighted. Keyboard navigable. Uses existing design tokens.</p>
+                </div>
+                <div class="child-status">
+                  <span class="child-pill done">build · merged</span>
+                  <span class="child-meta">Matt · #421</span>
+                </div>
+              </div>
+              <div class="child">
+                <div>
+                  <div class="child-title">Default card selection logic</div>
+                  <p class="child-intent">Pick most-recently-used card unless user-flagged preference exists. Falls back gracefully when token expired or revoked.</p>
+                </div>
+                <div class="child-status">
+                  <span class="child-pill run">build · in PR</span>
+                  <span class="child-meta">Matt · #427</span>
+                </div>
+              </div>
+              <div class="child">
+                <div>
+                  <div class="child-title">A/B test wiring</div>
+                  <p class="child-intent">50/50 cohort split keyed on user_id hash. Surface treatment via feature flag. Telemetry events emit to existing pipeline.</p>
+                </div>
+                <div class="child-status">
+                  <span class="child-pill done">test · drafted</span>
+                  <span class="child-meta">Tom · 12 cases</span>
+                </div>
+              </div>
+              <div class="child">
+                <div>
+                  <div class="child-title">Telemetry contract</div>
+                  <p class="child-intent">Define and document the event schema for saved-card surface, click, dismiss, fallback. MSSQL ingestion table updates.</p>
+                </div>
+                <div class="child-status">
+                  <span class="child-pill gate">UX gate · waiting</span>
+                  <span class="child-meta">Jules · 2h</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="s2-section">
+            <h3>Open questions</h3>
+            <div class="outcome-list">
+              <div class="outcome">
+                <span class="outcome-num">?</span>
+                <span class="outcome-text">When a saved card is expired but the user hasn't been notified — surface the card with a warning, or hide it?</span>
+                <span class="outcome-metric" style="color: var(--amber)">unresolved</span>
+              </div>
+              <div class="outcome">
+                <span class="outcome-num">?</span>
+                <span class="outcome-text">Default selection ambiguity for users with cards across multiple brands — most recent vs. user preference vs. issuer rules.</span>
+                <span class="outcome-metric" style="color: var(--amber)">UX gating</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="s2-section">
+            <h3>Inherited fragments</h3>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <span class="frag-chip identity">identity:frontend-dev@v6</span>
+              <span class="frag-chip method">methodology:problem-framing@v2</span>
+              <span class="frag-chip" style="color: var(--violet)">project:react-conventions@v9</span>
+              <span class="frag-chip" style="color: var(--violet)">project:design-system@v11</span>
+              <span class="frag-chip" style="color: var(--violet)">project:mssql-patterns@v4</span>
+              <span class="frag-chip domain">domain:checkout-glossary@v7</span>
+              <span class="frag-chip skill">skill:component-from-wireframe@v3</span>
+              <span class="frag-chip" style="color: var(--coral)">feedback:saved-cards-2026-04@v1</span>
+            </div>
+          </div>
+        </main>
+
+        <aside class="s2-rail">
+          <div class="rail-tabs">
+            <div class="rail-tab on">Artifacts</div>
+            <div class="rail-tab">Runs</div>
+            <div class="rail-tab">Conversation</div>
+          </div>
+
+          <div class="rail-section">
+            <h4>Designs <span class="add">+ attach</span></h4>
+            <div class="artifact-row">
+              <div class="art-icon fig">FIG</div>
+              <div>
+                <div class="art-name">Card list — desktop + mobile</div>
+                <div class="art-meta">figma · frame 1:42 · synced 14m</div>
+              </div>
+              <span class="art-ver">v4</span>
+            </div>
+            <div class="artifact-row">
+              <div class="art-icon fig">FIG</div>
+              <div>
+                <div class="art-name">Empty state &amp; expired card variants</div>
+                <div class="art-meta">figma · frame 1:48 · synced 22m</div>
+              </div>
+              <span class="art-ver">v2</span>
+            </div>
+          </div>
+
+          <div class="rail-section">
+            <h4>Code</h4>
+            <div class="artifact-row">
+              <div class="art-icon code">.tsx</div>
+              <div>
+                <div class="art-name">SavedCardList.tsx</div>
+                <div class="art-meta">ado · feat/saved-card · #427</div>
+              </div>
+              <span class="art-ver">v6</span>
+            </div>
+            <div class="artifact-row">
+              <div class="art-icon code">.cs</div>
+              <div>
+                <div class="art-name">SavedCardController.cs</div>
+                <div class="art-meta">ado · feat/saved-card · #427</div>
+              </div>
+              <span class="art-ver">v3</span>
+            </div>
+          </div>
+
+          <div class="rail-section">
+            <h4>Specs</h4>
+            <div class="artifact-row">
+              <div class="art-icon doc">MD</div>
+              <div>
+                <div class="art-name">Acceptance criteria · 7 items</div>
+                <div class="art-meta">loom · accepted by Anna · 1d</div>
+              </div>
+              <span class="art-ver">v3</span>
+            </div>
+            <div class="artifact-row">
+              <div class="art-icon doc">MD</div>
+              <div>
+                <div class="art-name">ADR-08 · saved-card token surface</div>
+                <div class="art-meta">git · /docs/adr · merged</div>
+              </div>
+              <span class="art-ver">v1</span>
+            </div>
+            <div class="artifact-row">
+              <div class="art-icon test">QA</div>
+              <div>
+                <div class="art-name">Test plan · 12 cases</div>
+                <div class="art-meta">ado test plans · drafted</div>
+              </div>
+              <span class="art-ver">v1</span>
+            </div>
+          </div>
+
+          <div class="rail-section">
+            <h4>Recent activity</h4>
+            <div class="conv-msg">
+              <div class="conv-head">
+                <span class="conv-author agent">agent · enrich.acceptance</span>
+                <span class="conv-time">14m</span>
+              </div>
+              <div class="conv-body">Drafted 7 acceptance criteria from intent + outcomes. 2 marked uncertain — see open questions on telemetry contract and expired-card fallback.</div>
+            </div>
+            <div class="conv-msg">
+              <div class="conv-head">
+                <span class="conv-author">Jules</span>
+                <span class="conv-time">2h</span>
+              </div>
+              <div class="conv-body">Reviewing wireframes. Empty-state copy needs softening — proposing "We'll save this card for next time" rather than "Card stored". Annotation #44.</div>
+            </div>
+            <div class="conv-msg">
+              <div class="conv-head">
+                <span class="conv-author">Anna</span>
+                <span class="conv-time">1d</span>
+              </div>
+              <div class="conv-body">Accepted acceptance criteria v3 with two edits — tightened the conversion target, added the PCI invariant as guard.</div>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════ SCREEN 3: Kickoff PO Gate ═════════════════ -->
+  <section class="screen-wrap">
+    <div class="screen-label">
+      <span class="screen-num">03 / 04</span>
+      <h2 class="screen-name">Kickoff &amp; PO Gate</h2>
+      <span class="screen-tag">/ workflow · po-only</span>
+    </div>
+    <div class="screen">
+      <nav class="app-nav">
+        <span class="brand">Loom</span>
+        <span class="proj-pill"><span class="dot"></span>retail-web · main</span>
+        <input class="nav-search" type="text" value="search nodes, fragments, runs…">
+        <div class="nav-actions">
+          <span class="nav-link">Library</span>
+          <span class="nav-link">Workflows</span>
+          <span class="nav-link">Activity</span>
+          <div class="avatar">AN</div>
+        </div>
+      </nav>
+
+      <div class="s3-head">
+        <div>
+          <div class="s3-eyebrow"><span class="kick">● KICKOFF · STAGE 5 · PO GATE</span> run_01HW7Z3K8B · 4m 12s</div>
+          <h1 class="s3-title">Express checkout <em>flow</em> · proposed decomposition</h1>
+        </div>
+        <div class="frag-strip">
+          <span class="frag-chip identity">identity:po-architect-pair@v2</span>
+          <span class="frag-chip method">methodology:problem-framing@v2</span>
+          <span class="frag-chip method">methodology:def-of-ready@v1</span>
+          <span class="frag-chip domain">domain:checkout-glossary@v7</span>
+          <span class="frag-chip skill">skill:feature-decomposition@v3</span>
+        </div>
+      </div>
+
+      <div class="s3-body">
+
+        <div class="s3-pane">
+          <div class="pane-head">
+            <span class="pane-title">Source · Teams transcript</span>
+            <span class="pane-meta">28 turns · 31 min · 5 speakers</span>
+          </div>
+          <div class="pane-body">
+            <div class="topic-marker">— problem framing —</div>
+            <div class="transcript-turn">
+              <div class="tt-head">
+                <span class="tt-speaker">Anna</span>
+                <span class="tt-role">PO</span>
+                <span class="tt-time">02:14</span>
+              </div>
+              <div class="tt-body">The thing that keeps coming up in research is — returning users hate that they re-enter card details every time. We have tokenization, we just don't surface it.</div>
+            </div>
+            <div class="transcript-turn">
+              <div class="tt-head">
+                <span class="tt-speaker">Priya</span>
+                <span class="tt-role">Lead</span>
+                <span class="tt-time">02:48</span>
+              </div>
+              <div class="tt-body">Tokens are there. The question is how we expose them without dragging the cart page into PCI scope. We did some of this work for the wallet integration.</div>
+            </div>
+            <div class="transcript-turn highlighted">
+              <div class="tt-head">
+                <span class="tt-speaker">Anna</span>
+                <span class="tt-role">PO</span>
+                <span class="tt-time">04:22</span>
+              </div>
+              <div class="tt-body">If we can get a returning user to confirmation in three clicks or fewer — that's the bar. Three clicks. From cart, to choose, to confirm.</div>
+            </div>
+
+            <div class="topic-marker">— scope &amp; boundaries —</div>
+            <div class="transcript-turn">
+              <div class="tt-head">
+                <span class="tt-speaker">Jules</span>
+                <span class="tt-role">UX</span>
+                <span class="tt-time">11:09</span>
+              </div>
+              <div class="tt-body">Worth thinking about expired cards though. Don't want to surface a card and then have it fail at confirm. Bad experience.</div>
+            </div>
+            <div class="transcript-turn">
+              <div class="tt-head">
+                <span class="tt-speaker">Matt</span>
+                <span class="tt-role">Dev</span>
+                <span class="tt-time">12:31</span>
+              </div>
+              <div class="tt-body">CVV revalidation might still be needed depending on issuer. Not all of them accept tokenized auth without CVV every time.</div>
+            </div>
+            <div class="transcript-turn">
+              <div class="tt-head">
+                <span class="tt-speaker">Anna</span>
+                <span class="tt-role">PO</span>
+                <span class="tt-time">14:02</span>
+              </div>
+              <div class="tt-body">Ok so we probably need: surface saved cards, default selection logic, and CVV step where required. Three pieces. Maybe a fourth around guest flow not regressing.</div>
+            </div>
+            <div class="transcript-turn">
+              <div class="tt-head">
+                <span class="tt-speaker">Tom</span>
+                <span class="tt-role">QA</span>
+                <span class="tt-time">19:48</span>
+              </div>
+              <div class="tt-body">I'd want a clear A/B fence around this. We've burned ourselves before on flow changes and lost the conversion baseline.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="s3-pane">
+          <div class="pane-head">
+            <span class="pane-title">Discovery · extracted</span>
+            <span class="pane-meta">strict JSON · editable</span>
+          </div>
+          <div class="pane-body">
+            <div class="disc-field">
+              <div class="disc-label">Problem statement</div>
+              <div class="disc-value italic">Returning users re-enter card details despite the platform holding valid tokenized cards, adding friction and dragging conversion.</div>
+            </div>
+            <div class="disc-field">
+              <div class="disc-label">Desired outcomes</div>
+              <div class="disc-list">
+                <div class="disc-item"><span class="num">01</span> <span>Returning user reaches confirmation in ≤ 3 clicks from cart.</span><span class="meta">measurable</span></div>
+                <div class="disc-item"><span class="num">02</span> <span>Cart→confirmation conversion lifts for saved-card cohort.</span><span class="meta">target +8%</span></div>
+                <div class="disc-item"><span class="num">03</span> <span>No regression in guest-flow conversion.</span><span class="meta">guard</span></div>
+              </div>
+            </div>
+            <div class="disc-field">
+              <div class="disc-label">Constraints</div>
+              <div class="disc-list">
+                <div class="disc-item"><span class="num">·</span> <span>Must not expand PCI audit boundary for cart page.</span><span class="meta">regulatory</span></div>
+                <div class="disc-item"><span class="num">·</span> <span>CVV revalidation required for some issuers; flow must accommodate.</span><span class="meta">technical</span></div>
+              </div>
+            </div>
+            <div class="disc-field">
+              <div class="disc-label">Open questions</div>
+              <div class="disc-list">
+                <div class="disc-item"><span class="num">?</span> <span>Behaviour when saved card is expired or revoked at surface time.</span><span class="meta">UX</span></div>
+                <div class="disc-item"><span class="num">?</span> <span>Selection priority across multiple saved cards.</span><span class="meta">product</span></div>
+              </div>
+            </div>
+            <div class="disc-field">
+              <div class="disc-label">Dissent &amp; concerns</div>
+              <div class="disc-list">
+                <div class="disc-item dissent"><span class="num">!</span> <span>Tom flagged need for A/B fence; team has previously lost conversion baseline on flow changes.</span><span class="meta">noted</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="s3-pane">
+          <div class="pane-head">
+            <span class="pane-title">Proposed tree</span>
+            <span class="pane-meta">drag · split · merge</span>
+          </div>
+          <div class="pane-body">
+            <div class="tree-prop">
+              <div class="prop-card">
+                <div class="prop-head">
+                  <span class="prop-type" style="color: var(--accent)">FEATURE · ROOT</span>
+                  <span class="prop-actions"><span>edit</span><span>·</span><span>split</span></span>
+                </div>
+                <div class="prop-title">Express checkout flow</div>
+                <div class="prop-intent">Lift completion for returning users by surfacing tokenized cards on cart, while preserving guest flows and PCI boundary.</div>
+              </div>
+              <div class="prop-card deeper">
+                <div class="prop-head">
+                  <span class="prop-type cap">CAPABILITY</span>
+                  <span class="prop-actions"><span>edit</span><span>·</span><span>×</span></span>
+                </div>
+                <div class="prop-title">Saved card surfacing on cart</div>
+                <div class="prop-intent">Default-highlight a tokenized card on cart for returning users.</div>
+                <div class="prop-q">? expired-card fallback behaviour</div>
+              </div>
+              <div class="prop-card deeper">
+                <div class="prop-head">
+                  <span class="prop-type cap">CAPABILITY</span>
+                  <span class="prop-actions"><span>edit</span><span>·</span><span>×</span></span>
+                </div>
+                <div class="prop-title">Default card selection logic</div>
+                <div class="prop-intent">Choose which saved card to surface when more than one exists.</div>
+                <div class="prop-q">? selection priority rules</div>
+              </div>
+              <div class="prop-card deeper">
+                <div class="prop-head">
+                  <span class="prop-type cap">CAPABILITY</span>
+                  <span class="prop-actions"><span>edit</span><span>·</span><span>×</span></span>
+                </div>
+                <div class="prop-title">CVV revalidation step</div>
+                <div class="prop-intent">Conditional CVV input for issuers that require it.</div>
+              </div>
+              <div class="prop-card deeper">
+                <div class="prop-head">
+                  <span class="prop-type cap">CAPABILITY</span>
+                  <span class="prop-actions"><span>edit</span><span>·</span><span>×</span></span>
+                </div>
+                <div class="prop-title">Guest flow non-regression</div>
+                <div class="prop-intent">Guard rails to keep guest checkout untouched and measurable.</div>
+              </div>
+
+              <div style="margin-top: 18px; padding: 14px; border: 1px dashed var(--border-2); border-radius: 3px; text-align: center;">
+                <span style="font-family: var(--mono); font-size: 11px; color: var(--text-3); letter-spacing: 0.05em">+ add capability</span>
+              </div>
+
+              <div style="margin-top: 18px; padding: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px;">
+                <div class="disc-label">Memory · similar prior work</div>
+                <div style="font-size: 12px; color: var(--text-2); margin-top: 8px; line-height: 1.5">
+                  78% similar to <span style="color: var(--accent); font-family: var(--mono); font-size: 11px">FEAT-87 · wallet integration</span> — completed Q1, ADR-04 covers token surface decisions.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="s3-foot">
+        <div class="foot-meta">
+          run · <span>run_01HW7Z3K8B</span> &nbsp; engine · <span>anthropic / sonnet</span> &nbsp; cost · <span>$0.42</span> &nbsp; provenance · <span>5 fragments · transcript art_x91</span>
+        </div>
+        <div class="foot-actions">
+          <button class="btn">Reject &amp; restart</button>
+          <button class="btn">Edit &amp; re-run</button>
+          <button class="btn btn-primary">Accept &amp; create tree</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════════ SCREEN 4: Fragment Library ═════════════════ -->
+  <section class="screen-wrap">
+    <div class="screen-label">
+      <span class="screen-num">04 / 04</span>
+      <h2 class="screen-name">Fragment Library</h2>
+      <span class="screen-tag">/ methodology · curators + editors</span>
+    </div>
+    <div class="screen">
+      <nav class="app-nav">
+        <span class="brand">Loom</span>
+        <span class="proj-pill"><span class="dot"></span>retail-web · main</span>
+        <input class="nav-search" type="text" value="search nodes, fragments, runs…">
+        <div class="nav-actions">
+          <span class="nav-link">Library</span>
+          <span class="nav-link">Workflows</span>
+          <span class="nav-link">Activity</span>
+          <div class="avatar">AN</div>
+        </div>
+      </nav>
+
+      <div class="s4-body">
+
+        <aside class="s4-side">
+          <h4>Categories</h4>
+          <div class="cat-list">
+            <div class="cat-row"><span class="cat-swatch identity"></span> Identity <span class="cat-count">14</span></div>
+            <div class="cat-row on"><span class="cat-swatch method"></span> Methodology <span class="cat-count">9</span></div>
+            <div class="cat-row"><span class="cat-swatch project"></span> Project <span class="cat-count">22</span></div>
+            <div class="cat-row"><span class="cat-swatch domain"></span> Domain <span class="cat-count">11</span></div>
+            <div class="cat-row"><span class="cat-swatch skill"></span> Skill <span class="cat-count">38</span></div>
+            <div class="cat-row"><span class="cat-swatch feedback"></span> Feedback <span class="cat-count">17</span></div>
+          </div>
+
+          <h4>Scope</h4>
+          <span class="scope-tag">Global <span class="c">31</span></span>
+          <span class="scope-tag">Project <span class="c">52</span></span>
+          <span class="scope-tag">Node-local <span class="c">28</span></span>
+
+          <h4 style="margin-top: 28px">Health</h4>
+          <span class="scope-tag">Active <span class="c">98</span></span>
+          <span class="scope-tag">Deprecated <span class="c">7</span></span>
+          <span class="scope-tag">Stale (no use 30d) <span class="c">6</span></span>
+
+          <div style="margin-top: 28px; padding: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px;">
+            <div style="font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 8px;">+ COMPILE</div>
+            <div style="font-size: 12px; color: var(--text-2); line-height: 1.4;">Compile this scope to <span style="font-family: var(--mono); font-size: 11px; color: var(--text)">CLAUDE.md</span> &amp; <span style="font-family: var(--mono); font-size: 11px; color: var(--text)">.cursorrules</span></div>
+          </div>
+        </aside>
+
+        <main class="s4-main">
+          <div class="s4-head">
+            <h1 class="s4-h1">Methodology <em>fragments</em></h1>
+            <span class="s4-meta">9 fragments · 31 versions · last edit 2h ago</span>
+          </div>
+
+          <div class="frag-table">
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>problem-framing</div>
+                <div class="frag-desc">Separates problems from solutions. When transcripts contain solution language, extract underlying problem and record proposal as hypothesis.</div>
+              </div>
+              <span class="frag-cell">v2</span>
+              <span class="frag-cell scope-g">global</span>
+              <span class="frag-cell">Anna</span>
+              <span class="frag-cell high">847 runs</span>
+            </div>
+            <div class="frag-row on">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>definition-of-ready</div>
+                <div class="frag-desc">A feature is ready when it has a stated problem, ≥ 1 measurable outcome, named constraints, identified stakeholders, and explicit open questions.</div>
+              </div>
+              <span class="frag-cell">v1</span>
+              <span class="frag-cell scope-g">global</span>
+              <span class="frag-cell">Anna</span>
+              <span class="frag-cell high">612 runs</span>
+            </div>
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>definition-of-done</div>
+                <div class="frag-desc">Acceptance criteria green, tests passing, telemetry verified in staging, ADR linked when architecture touched, no open UX gates.</div>
+              </div>
+              <span class="frag-cell">v3</span>
+              <span class="frag-cell scope-g">global</span>
+              <span class="frag-cell">Priya</span>
+              <span class="frag-cell">443 runs</span>
+            </div>
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>decision-log-style</div>
+                <div class="frag-desc">Decisions recorded as ADR with context, options considered, decision, consequences. Reversible vs. irreversible flag required.</div>
+              </div>
+              <span class="frag-cell">v4</span>
+              <span class="frag-cell scope-g">global</span>
+              <span class="frag-cell">Priya</span>
+              <span class="frag-cell">218 runs</span>
+            </div>
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>dissent-extraction</div>
+                <div class="frag-desc">When extracting from transcripts, surface disagreement explicitly. Recurring dissent across features escalates to methodology owner.</div>
+              </div>
+              <span class="frag-cell">v2</span>
+              <span class="frag-cell scope-g">global</span>
+              <span class="frag-cell">Anna</span>
+              <span class="frag-cell">389 runs</span>
+            </div>
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>slice-sizing</div>
+                <div class="frag-desc">A slice should be deliverable end-to-end in ≤ 3 days. If estimation exceeds, propose further decomposition before accepting.</div>
+              </div>
+              <span class="frag-cell">v5</span>
+              <span class="frag-cell scope-p">project</span>
+              <span class="frag-cell">Priya</span>
+              <span class="frag-cell">156 runs</span>
+            </div>
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>experiment-fence</div>
+                <div class="frag-desc">Any flow change touching conversion-critical paths must declare A/B fence and baseline measurement before build phase.</div>
+              </div>
+              <span class="frag-cell">v1</span>
+              <span class="frag-cell scope-p">project</span>
+              <span class="frag-cell">Tom</span>
+              <span class="frag-cell">88 runs</span>
+            </div>
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>pci-invariant</div>
+                <div class="frag-desc">When work touches payment data, agent MUST emit a PCI scope assessment and refuse to expand boundary without explicit ADR.</div>
+              </div>
+              <span class="frag-cell">v2</span>
+              <span class="frag-cell scope-p">project</span>
+              <span class="frag-cell">Priya</span>
+              <span class="frag-cell">42 runs</span>
+            </div>
+            <div class="frag-row">
+              <div>
+                <div class="frag-key"><span class="cat-prefix">methodology:</span>pair-with-architect</div>
+                <div class="frag-desc">For decomposition steps, identity composes PO + architect lenses to balance product framing with structural feasibility. <em>(deprecated v2; use v3.)</em></div>
+              </div>
+              <span class="frag-cell" style="color: var(--text-3); text-decoration: line-through">v2</span>
+              <span class="frag-cell scope-g">global</span>
+              <span class="frag-cell">Anna</span>
+              <span class="frag-cell" style="color: var(--text-3)">deprecated</span>
+            </div>
+          </div>
+        </main>
+
+        <aside class="s4-detail">
+          <div class="det-head">
+            <div class="det-cat">METHODOLOGY · GLOBAL</div>
+            <div class="det-title">Definition of ready</div>
+            <div class="det-key">methodology:definition-of-ready · owner Anna</div>
+            <div class="det-tags">
+              <span class="tag-chip">discovery</span>
+              <span class="tag-chip">kickoff</span>
+              <span class="tag-chip">readiness</span>
+              <span class="tag-chip">core</span>
+            </div>
+          </div>
+
+          <div class="det-section">
+            <h4>Content · v1 <span style="color: var(--accent)">edit</span></h4>
+            <pre class="frag-content">A feature is "ready" when it has all of the
+following, or the missing ones are explicitly
+flagged:
+
+  · a stated problem (not a solution)
+  · ≥ 1 measurable desired outcome with metric_hint
+  · named constraints (regulatory, technical, time)
+  · identified stakeholders
+  · explicit open questions
+  · acknowledged dissent (if any)
+
+Your extraction MUST populate all six. If a field
+cannot be derived from the source, set it to null
+and add it to open_questions with reasoning. Do
+not infer numbers; suggest metric_hint without
+inventing values.</pre>
+          </div>
+
+          <div class="det-section">
+            <h4>Versions</h4>
+            <div class="ver-row">
+              <span class="ver-num">v1</span>
+              <span class="ver-note">Initial · approved by Anna</span>
+              <span class="ver-when">2026-02-14</span>
+            </div>
+            <div class="ver-row">
+              <span class="ver-num old">v0</span>
+              <span class="ver-note">Draft · seed import from internal-comms wiki</span>
+              <span class="ver-when">2026-02-09</span>
+            </div>
+          </div>
+
+          <div class="det-section">
+            <h4>Usage · last 30 days</h4>
+            <div class="usage-stat"><span>Runs composed into</span><span class="v">612</span></div>
+            <div class="usage-stat"><span>Features kicked off</span><span class="v">28</span></div>
+            <div class="usage-stat"><span>Avg. acceptance after PO gate</span><span class="v" style="color: var(--sage)">94%</span></div>
+            <div class="usage-stat"><span>Recurring annotation themes</span><span class="v">3</span></div>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-2); line-height: 1.5;">
+              Recurring theme: PO sometimes asks for tighter scoping of "constraints" — candidate refinement queued.
+            </div>
+          </div>
+
+          <div class="det-section">
+            <h4>Used by workflows</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+              <span style="color: var(--text-2)">workflow.kickoff · stage discovery</span>
+              <span style="color: var(--text-2)">workflow.kickoff · stage decompose</span>
+              <span style="color: var(--text-2)">workflow.enrich · stage acceptance</span>
+              <span style="color: var(--text-2)">workflow.audit · readiness-check</span>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+
+  <footer class="footnote">
+    <p>Loom · screen drafts v0.1 · <em>edit, fork, rebuild</em>. Real values throughout — none are lorem ipsum. The four screens shown are 1 of 10 in the design overview document. Aesthetic and copy intentionally opinionated to provoke discussion; replace any choice you disagree with.</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

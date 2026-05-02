@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Loom.Contracts</RootNamespace>
+    <AssemblyName>Loom.Contracts</AssemblyName>
+  </PropertyGroup>
+
+</Project>

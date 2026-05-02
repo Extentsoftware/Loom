@@ -1,0 +1,46 @@
+name: Proposal
+description: Suggest a change to Loom — feature, methodology, architecture
+labels: ["proposal"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this solve? Whose problem is it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: A sketch of the change. Implementation detail not required.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other shapes you thought about, and why this one wins.
+
+  - type: textarea
+    id: open_questions
+    attributes:
+      label: Open questions
+      description: What's still unresolved? What would you want input on?
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface
+      multiple: true
+      options:
+        - Domain model
+        - Application services
+        - Infrastructure / persistence
+        - Agent runtime / engines
+        - MCP server
+        - Web UI / Blazor
+        - Methodology (fragments / workflows)
+        - Documentation

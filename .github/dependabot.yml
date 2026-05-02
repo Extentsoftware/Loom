@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      ef-core:
+        patterns: ["Microsoft.EntityFrameworkCore*"]
+      microsoft-extensions:
+        patterns: ["Microsoft.Extensions.*"]
+      test-stack:
+        patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "FluentAssertions", "Testcontainers*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
