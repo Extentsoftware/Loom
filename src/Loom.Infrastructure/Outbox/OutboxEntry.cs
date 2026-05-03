@@ -20,7 +20,7 @@ public sealed class OutboxEntry
     }
 
     public Guid Id { get; private set; }
-    public long Sequence { get; private set; }
+    public long Sequence { get; internal set; }
     public DateTimeOffset OccurredAt { get; private set; }
     public string EventType { get; private set; } = null!;
     public string PayloadJson { get; private set; } = null!;

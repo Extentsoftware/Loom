@@ -80,6 +80,14 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
             versionProp.Metadata.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
             versionProp.Metadata.IsConcurrencyToken = false;
             versionProp.HasDefaultValue(0u);
+
+            // SQLite has no IDENTITY equivalent; tell EF to not treat the
+            // Sequence column as server-generated so it's included in the
+            // INSERT. The DbContext SaveChangesAsync override assigns
+            // values client-side as MAX+1.
+            var seqProp = modelBuilder.Entity<Loom.Infrastructure.Outbox.OutboxEntry>()
+                .Property(e => e.Sequence);
+            seqProp.Metadata.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
         }
 
         base.OnModelCreating(modelBuilder);
@@ -92,6 +100,7 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
     /// </summary>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        var newOutbox = new List<OutboxEntry>();
         if (_events is not null)
         {
             var pending = _events.Drain();
@@ -100,9 +109,28 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
                 var eventType = evt.GetType().FullName
                     ?? throw new InvalidOperationException("Domain event has no full name.");
                 var payloadJson = System.Text.Json.JsonSerializer.Serialize(evt, evt.GetType(), (System.Text.Json.JsonSerializerOptions?)null);
-                Outbox.Add(OutboxEntry.Create(evt.OccurredAt, eventType, payloadJson));
+                var entry = OutboxEntry.Create(evt.OccurredAt, eventType, payloadJson);
+                newOutbox.Add(entry);
+                Outbox.Add(entry);
             }
         }
+
+        // SQLite has no IDENTITY column equivalent. Assign Sequence client-
+        // side as MAX+1 over existing rows. Race-prone in multi-writer
+        // scenarios but SQLite is dev-only and runs in-process. SQL Server
+        // keeps using the IDENTITY column from the configuration.
+        if (newOutbox.Count > 0 &&
+            Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var maxSeq = await Outbox.AsNoTracking()
+                .Select(o => (long?)o.Sequence)
+                .MaxAsync(cancellationToken) ?? 0L;
+            for (var i = 0; i < newOutbox.Count; i++)
+            {
+                newOutbox[i].Sequence = maxSeq + i + 1;
+            }
+        }
+
         return await base.SaveChangesAsync(cancellationToken);
     }
 }

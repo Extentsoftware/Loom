@@ -344,7 +344,11 @@ select,
 textarea {
   display: block;
   width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   background: var(--surface) !important;
+  background-color: var(--surface) !important;
   color: var(--text) !important;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -353,6 +357,14 @@ textarea {
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s;
+}
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0 30px var(--surface) inset !important;
+  caret-color: var(--text);
 }
 input:focus,
 select:focus,
