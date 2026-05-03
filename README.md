@@ -123,7 +123,15 @@ When AI-assisted changes warrant it, record an architecture decision under `docs
 
 ## Project status
 
-Pre-alpha. See `docs/design/loom-design.md` for the full design overview and `docs/design/loom-screens.html` for screen drafts. Build sequence is in the design doc — Phase 1 is the kernel (current).
+Pre-alpha, working through the seven-phase plan in `.claude/plans/fix-the-build-iridescent-stearns.md`. As of this snapshot:
+
+- **Phases 1–3 (kernel + MCP + decompose/enrichment/notifications/replay)** — complete.
+- **Phase 4 (artifact versioning + soft locks + Inspector)** — foundation complete; Figma adapter + plugin deferred to 4b.
+- **Phase 5a (budget circuit breaker + multi-engine router + Agent Activity)** — complete; Foundry SDK + Claude Code Headless workspace runner deferred to 5b.
+- **Phase 6a (memory search seam + memory-lookup workflow step)** — complete; Elasticsearch + indexer worker + global search box deferred to 6b.
+- **Phase 7a (Workflow Library + Detail)** — complete; editable Workflow Designer + multi-tenancy deferred to 7b.
+
+ADRs 0011–0016 document the cuts and seams. See `docs/design/loom-design.md` for the full design overview and `docs/design/loom-screens.html` for screen drafts.
 
 ## License
 

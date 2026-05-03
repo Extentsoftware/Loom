@@ -1,0 +1,95 @@
+@*
+    Workflow Detail — read-only step inspector. For each step shows kind,
+    gating role, engine preference, output schema name, budgets, and
+    every fragment selector contributing to the assembled prompt. The
+    Phase-7b editor will reuse this layout with form inputs.
+*@
+
+@page "/workflows/{WorkflowId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject IWorkflowRepository Workflows
+
+<PageTitle>Workflow · Loom</PageTitle>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_workflow is null)
+{
+    <section class="empty-state">
+        <h2>Workflow not found.</h2>
+        <p><a href="/workflows">Back to library</a></p>
+    </section>
+}
+else
+{
+    <header class="page-head">
+        <p class="page-meta"><a href="/workflows">← Workflow library</a></p>
+        <h1 class="page-title">@_workflow.Title</h1>
+        <p class="page-meta">
+            <code>@_workflow.Key.Value</code> · v@(_workflow.Version) · created @_workflow.CreatedAt.ToString("yyyy-MM-dd")
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <h2>Steps (@_workflow.Steps.Count)</h2>
+        @foreach (var s in _workflow.Steps.OrderBy(x => x.Order))
+        {
+            <div class="workflow-step">
+                <h3>@s.Order. <code>@s.Key</code></h3>
+                <dl class="kv">
+                    <dt>Kind</dt><dd>@s.Kind</dd>
+                    <dt>Gating</dt><dd>@s.Gating</dd>
+                    @if (s.EnginePref is not null)
+                    {
+                        <dt>Engine</dt><dd>@s.EnginePref</dd>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(s.OutputSchemaName))
+                    {
+                        <dt>Output schema</dt><dd><code>@s.OutputSchemaName</code></dd>
+                    }
+                    <dt>Budgets</dt>
+                    <dd>
+                        in=@(s.Budgets.MaxInputTokens?.ToString() ?? "—")
+                        · out=@(s.Budgets.MaxOutputTokens?.ToString() ?? "—")
+                        · wall=@(s.Budgets.MaxWallClock?.ToString() ?? "—")
+                        · $=@(s.Budgets.MaxCostUsd?.ToString("F2") ?? "—")
+                    </dd>
+                </dl>
+
+                <h4>Fragment selectors (@s.FragmentSelectors.Count)</h4>
+                @if (s.FragmentSelectors.Count == 0)
+                {
+                    <p class="muted">No selectors.</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var sel in s.FragmentSelectors)
+                        {
+                            <li>
+                                <code>@sel.Category</code> :: <code>@sel.Key.Value</code>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public Guid WorkflowId { get; set; }
+
+    private bool _loaded;
+    private Loom.Domain.Workflows.Workflow? _workflow;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _workflow = await Workflows.GetAsync(new Loom.Domain.Workflows.WorkflowId(WorkflowId));
+        _loaded = true;
+    }
+}

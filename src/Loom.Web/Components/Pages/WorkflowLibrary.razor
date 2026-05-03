@@ -1,0 +1,70 @@
+@*
+    Workflow Library — methodology owner's view of registered workflows.
+    Read-only in Phase 7a; the editable Workflow Designer (Monaco YAML +
+    DAG view) is the deferred 7b piece per cut #1 of the master plan.
+
+    Lists every (Key, Version) pair the bootstrapper has seeded. The
+    detail page shows the full step list, gating, engine pref, and
+    fragment selectors so an owner can review what the kickoff will
+    actually do without reading the source.
+*@
+
+@page "/workflows"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject IWorkflowRepository Workflows
+
+<PageTitle>Workflows · Loom</PageTitle>
+
+<header class="page-head">
+    <p class="page-meta"><a href="/">← Operating Picture</a></p>
+    <h1 class="page-title">Workflow library</h1>
+    <p class="page-meta">
+        Phase 7a is read-only — editable Workflow Designer ships in 7b.
+    </p>
+</header>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_workflows.Count == 0)
+{
+    <section class="empty-state">
+        <h2>No workflows registered.</h2>
+        <p>The bootstrapper seeds <code>kickoff</code> and <code>enrichment</code>; restart the app to seed.</p>
+    </section>
+}
+else
+{
+    <section class="ws-section">
+        <table class="run-table">
+            <thead><tr><th>Key</th><th>Version</th><th>Title</th><th>Steps</th><th>Created</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var w in _workflows.OrderBy(w => w.Key.Value).ThenByDescending(w => w.Version))
+                {
+                    <tr>
+                        <td><code>@w.Key.Value</code></td>
+                        <td>v@(w.Version)</td>
+                        <td>@w.Title</td>
+                        <td>@w.Steps.Count</td>
+                        <td>@w.CreatedAt.ToString("yyyy-MM-dd")</td>
+                        <td><a href="@($"/workflows/{w.Id.Value:D}")">detail</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@code {
+    private bool _loaded;
+    private IReadOnlyList<Loom.Domain.Workflows.Workflow> _workflows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _workflows = await Workflows.ListAsync();
+        _loaded = true;
+    }
+}
