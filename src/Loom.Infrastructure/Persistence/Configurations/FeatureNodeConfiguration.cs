@@ -29,7 +29,10 @@ internal sealed class FeatureNodeConfiguration : IEntityTypeConfiguration<Featur
         b.Property(n => n.CreatedAt).IsRequired();
         b.Property(n => n.UpdatedAt).IsRequired();
 
-        // Optimistic concurrency on the Version field.
+        // Optimistic concurrency on the Version field. SQL Server uses
+        // rowversion (auto-generated). SQLite has no equivalent — the
+        // DbContext rewrites this property to a plain int with default 0
+        // when running against SQLite (see LoomDbContext.OnModelCreating).
         b.Property(n => n.Version)
             .IsRowVersion();
 

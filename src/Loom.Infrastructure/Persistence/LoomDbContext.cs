@@ -58,14 +58,30 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // SQLite has no notion of schemas; setting a default schema is silently
-        // ignored on most paths but EnsureCreated trips on it. Only apply on
-        // relational providers that support schemas (SQL Server today).
-        if (Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true)
+        var isSqlite = Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+
+        // SQLite has no notion of schemas; EnsureCreated trips on it.
+        if (!isSqlite)
         {
             modelBuilder.HasDefaultSchema("loom");
         }
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoomDbContext).Assembly);
+
+        if (isSqlite)
+        {
+            // SQLite has no rowversion. FeatureNode.Version was configured
+            // as IsRowVersion which makes EF skip writing the column on
+            // INSERT and read it back via RETURNING. SQLite never supplies
+            // a value, so we drop the value-generation behaviour and add a
+            // DB-level default of 0. Concurrency-checking is best-effort
+            // on SQLite (dev provider only).
+            var versionProp = modelBuilder.Entity<Loom.Domain.Nodes.FeatureNode>()
+                .Property(n => n.Version);
+            versionProp.Metadata.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
+            versionProp.Metadata.IsConcurrencyToken = false;
+            versionProp.HasDefaultValue(0u);
+        }
+
         base.OnModelCreating(modelBuilder);
     }
 
