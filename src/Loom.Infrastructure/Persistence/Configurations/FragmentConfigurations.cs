@@ -66,19 +66,20 @@ internal sealed class FragmentVersionConfiguration : IEntityTypeConfiguration<Fr
         b.Property(v => v.CreatedAt).IsRequired();
         b.Property(v => v.IsDeprecated).IsRequired();
 
-        // EngineHints persisted as a complex owned type.
+        // EngineHints persisted as a complex owned type. Database-level
+        // defaults on the bool columns are critical: EF Core's owned-entity
+        // null-sentinel detection sometimes skips writing the hints_*
+        // columns when every bool property is false, even with
+        // Navigation().IsRequired(). DB defaults make SQLite accept the
+        // skipped insert without violating NOT NULL.
         b.OwnsOne(v => v.Hints, h =>
         {
-            h.Property(x => x.PrefersExtendedThinking).HasColumnName("hints_prefers_extended_thinking");
+            h.Property(x => x.PrefersExtendedThinking).HasColumnName("hints_prefers_extended_thinking").HasDefaultValue(false);
             h.Property(x => x.MaxContextTokens).HasColumnName("hints_max_context_tokens");
-            h.Property(x => x.RequiresJsonOutput).HasColumnName("hints_requires_json_output");
-            h.Property(x => x.RequiresFilesystem).HasColumnName("hints_requires_filesystem");
+            h.Property(x => x.RequiresJsonOutput).HasColumnName("hints_requires_json_output").HasDefaultValue(false);
+            h.Property(x => x.RequiresFilesystem).HasColumnName("hints_requires_filesystem").HasDefaultValue(false);
             h.Property(x => x.PreferredModelHint).HasColumnName("hints_preferred_model").HasMaxLength(100);
         });
-        // Mark the owned navigation as required so EF doesn't apply null-
-        // sentinel detection when every bool property happens to be false
-        // (the default sentinel). Without this, SQLite inserts skip the
-        // hints_* columns and the NOT NULL constraint fires.
         b.Navigation(v => v.Hints).IsRequired();
 
         b.HasIndex(v => new { v.FragmentId, v.Version }).IsUnique();
