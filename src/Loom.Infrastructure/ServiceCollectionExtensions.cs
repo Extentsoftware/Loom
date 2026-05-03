@@ -6,6 +6,7 @@ using Loom.Application.BudgetControl;
 using Loom.Application.Common;
 using Loom.Application.Conversations;
 using Loom.Application.Features;
+using Loom.Application.Memory;
 using Loom.Application.Fragments;
 using Loom.Application.Notifications;
 using Loom.Application.Runs;
@@ -84,6 +85,13 @@ public static class ServiceCollectionExtensions
         // Phase-5: budget control + engine health monitor.
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddSingleton<IEngineHealthMonitor, InMemoryEngineHealthMonitor>();
+
+        // Phase-6a: memory search seam (SQL-backed). Phase-6b will swap in
+        // an Elasticsearch implementation behind the same interface. The
+        // memory-lookup in-proc step is registered alongside the other
+        // IInProcStep implementations the WorkflowEngine resolves by key.
+        services.AddScoped<IMemorySearch, SqlMemorySearch>();
+        services.AddScoped<IInProcStep, MemoryLookupStep>();
 
         // Notification channel stubs — InApp lives in Loom.Web (registered
         // there). Teams + Email are stubs in Phase 3; real impls land in
