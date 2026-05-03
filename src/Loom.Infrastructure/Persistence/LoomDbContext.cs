@@ -26,5 +26,4 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoomDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }
-
 }

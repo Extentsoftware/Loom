@@ -1,0 +1,19 @@
+@page "/error"
+@using System.Diagnostics
+
+<PageTitle>Error · Loom</PageTitle>
+
+<h1>Something went wrong.</h1>
+<p>An unhandled error occurred while processing your request. Reload to try again.</p>
+@if (RequestId is not null)
+{
+    <p class="muted">Request id: <code>@RequestId</code></p>
+}
+
+@code {
+    [CascadingParameter]
+    public HttpContext? HttpContext { get; set; }
+
+    private string? RequestId =>
+        Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

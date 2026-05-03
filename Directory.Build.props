@@ -10,16 +10,18 @@
     <WarningsNotAsErrors>NU1903;NU1902</WarningsNotAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
-    <IsPackable>false</IsPackable>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-  </PropertyGroup>
+  <!--
+    Note: a Condition="'$(IsTestProject)' == 'true'" PropertyGroup does NOT
+    work here — Directory.Build.props is imported before the csproj body, so
+    $(IsTestProject) is empty at this point. Test projects set their own
+    TreatWarningsAsErrors override.
+  -->
 
   <ItemGroup>
     <Using Include="System" />

@@ -1,0 +1,34 @@
+@*
+    Renders the signed-in user's initials and a sign-out link. In
+    development with AzureAd:Enabled = false, shows a "DEV" pill instead.
+*@
+
+<AuthorizeView>
+    <Authorized>
+        <div class="user-menu">
+            <div class="avatar" title="@context.User.Identity?.Name">
+                @InitialsOf(context.User.Identity?.Name)
+            </div>
+            <a class="signout" href="MicrosoftIdentity/Account/SignOut">Sign out</a>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="user-menu">
+            <div class="avatar avatar-dev" title="Anonymous (development mode)">DEV</div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private static string InitialsOf(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "??";
+        }
+        var parts = name.Split([' ', '.', '@'], StringSplitOptions.RemoveEmptyEntries);
+        var first = parts.Length > 0 ? parts[0][0..1].ToUpperInvariant() : "?";
+        var second = parts.Length > 1 ? parts[1][0..1].ToUpperInvariant() : "";
+        return first + second;
+    }
+}

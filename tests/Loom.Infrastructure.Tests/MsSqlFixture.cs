@@ -30,16 +30,16 @@ public sealed class MsSqlFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync() => await _container.DisposeAsync();
 
-    public Persistence.LoomDbContext CreateContext()
+    public Loom.Infrastructure.Persistence.LoomDbContext CreateContext()
     {
-        var options = new DbContextOptionsBuilder<Persistence.LoomDbContext>()
+        var options = new DbContextOptionsBuilder<Loom.Infrastructure.Persistence.LoomDbContext>()
             .UseSqlServer(ConnectionString, sql =>
             {
                 sql.MigrationsHistoryTable("__ef_migrations_history", "loom");
             })
             .Options;
 
-        return new Persistence.LoomDbContext(options);
+        return new Loom.Infrastructure.Persistence.LoomDbContext(options);
     }
 }
 
