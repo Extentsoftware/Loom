@@ -13,6 +13,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddLoomMcpServer(this IServiceCollection services)
     {
         services.AddMcpServer()
+            .WithHttpTransport()
             .WithToolsFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
         return services;
     }

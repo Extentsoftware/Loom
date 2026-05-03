@@ -46,7 +46,8 @@
       "Read(//c/Users/marcu/.nuget/packages/anthropic.sdk/5.10.0/**)",
       "Read(//c/Users/marcu/.nuget/packages/**)",
       "Bash(cat)",
-      "Bash(cp /tmp/op.razor src/Loom.Web/Components/Pages/OperatingPicture.razor)"
+      "Bash(cp /tmp/op.razor src/Loom.Web/Components/Pages/OperatingPicture.razor)",
+      "Bash(git push *)"
     ]
   }
 }
