@@ -75,6 +75,11 @@ internal sealed class FragmentVersionConfiguration : IEntityTypeConfiguration<Fr
             h.Property(x => x.RequiresFilesystem).HasColumnName("hints_requires_filesystem");
             h.Property(x => x.PreferredModelHint).HasColumnName("hints_preferred_model").HasMaxLength(100);
         });
+        // Mark the owned navigation as required so EF doesn't apply null-
+        // sentinel detection when every bool property happens to be false
+        // (the default sentinel). Without this, SQLite inserts skip the
+        // hints_* columns and the NOT NULL constraint fires.
+        b.Navigation(v => v.Hints).IsRequired();
 
         b.HasIndex(v => new { v.FragmentId, v.Version }).IsUnique();
     }
