@@ -3,6 +3,7 @@
   <PropertyGroup>
     <RootNamespace>Loom.Domain</RootNamespace>
     <AssemblyName>Loom.Domain</AssemblyName>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

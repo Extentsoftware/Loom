@@ -27,6 +27,14 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.1.0" />
 
+<<<<<<< Updated upstream
+=======
+    <!-- Web / auth -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Identity.Web" Version="3.5.0" />
+    <PackageVersion Include="Microsoft.Identity.Web.UI" Version="3.5.0" />
+
+>>>>>>> Stashed changes
     <!-- Misc -->
     <PackageVersion Include="System.Text.Json" Version="10.0.0" />
   </ItemGroup>
