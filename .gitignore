@@ -39,7 +39,6 @@ coverage/
 *.tsbuildinfo
 
 ## Secrets / local
-appsettings.Development.json
 appsettings.Local.json
 secrets.json
 *.env

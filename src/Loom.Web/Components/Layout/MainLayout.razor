@@ -1,0 +1,33 @@
+@*
+    Top-level layout for authenticated pages. The chrome echoes the
+    Operating Picture mockup at low fidelity — brand on left, project
+    pill, search placeholder, nav links, user avatar — without the
+    polished editorial aesthetic. Visual direction comes in a later slice.
+*@
+
+@inherits LayoutComponentBase
+
+<div class="app">
+    <nav class="app-nav">
+        <span class="brand">Loom</span>
+        <span class="proj-pill"><span class="dot"></span>retail-web · main</span>
+        <input class="nav-search" type="text" placeholder="search nodes, fragments, runs…" disabled />
+        <div class="nav-links">
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-link" ActiveClass="nav-link-active">Operating picture</NavLink>
+            <span class="nav-link nav-link-disabled" title="Coming in a later slice">Library</span>
+            <span class="nav-link nav-link-disabled" title="Coming in a later slice">Workflows</span>
+            <span class="nav-link nav-link-disabled" title="Coming in a later slice">Activity</span>
+        </div>
+        <UserMenu />
+    </nav>
+
+    <main class="app-main">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
