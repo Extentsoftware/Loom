@@ -1,6 +1,7 @@
 using Loom.Application.Abstractions;
 using Loom.Domain.Annotations;
 using Loom.Domain.Artifacts;
+using Loom.Domain.BudgetControl;
 using Loom.Domain.Conversations;
 using Loom.Domain.Fragments;
 using Loom.Domain.Integrations;
@@ -53,6 +54,7 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Annotation> Annotations => Set<Annotation>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<ProjectBudget> ProjectBudgets => Set<ProjectBudget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

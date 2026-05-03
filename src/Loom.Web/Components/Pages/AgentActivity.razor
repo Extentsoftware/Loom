@@ -1,0 +1,130 @@
+@*
+    Agent Activity. Phase-5 cross-engine dashboard. Shows:
+      • Live engine health (recent success/failure rates per engine).
+      • Active runs grouped by engine + state.
+      • Per-project budget burn (today's spend vs daily cap).
+    The page polls every 5 seconds; SignalR fan-out can replace the poll
+    in Phase 6 once the indexer's event stream is available.
+*@
+
+@page "/activity"
+@attribute [Authorize]
+@implements IDisposable
+@rendermode InteractiveServer
+
+@inject IRunRepository Runs
+@inject IProjectBudgetRepository BudgetRepo
+@inject IEngineHealthMonitor Health
+@inject IProjectRepository Projects
+
+<PageTitle>Agent activity · Loom</PageTitle>
+
+<header class="page-head">
+    <p class="page-meta"><a href="/">← Operating Picture</a></p>
+    <h1 class="page-title">Agent activity</h1>
+    <p class="page-meta">Auto-refreshes every 5s</p>
+</header>
+
+<section class="ws-section">
+    <h2>Engine health</h2>
+    @if (_health.Count == 0)
+    {
+        <p class="muted">No engines have produced runs yet.</p>
+    }
+    else
+    {
+        <table class="run-table">
+            <thead><tr><th>Engine</th><th>Status</th><th>Recent ok</th><th>Recent fail</th></tr></thead>
+            <tbody>
+                @foreach (var h in _health.Values.OrderBy(h => h.Engine))
+                {
+                    <tr>
+                        <td>@h.Engine</td>
+                        <td>@(h.IsHealthy ? "healthy" : "DEGRADED")</td>
+                        <td>@h.RecentSuccess</td>
+                        <td>@h.RecentFailure</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<section class="ws-section">
+    <h2>Active runs (@_active.Count)</h2>
+    @if (_active.Count == 0)
+    {
+        <p class="muted">No active runs.</p>
+    }
+    else
+    {
+        <table class="run-table">
+            <thead><tr><th>Engine</th><th>State</th><th>Created</th><th>Run</th></tr></thead>
+            <tbody>
+                @foreach (var r in _active.OrderBy(r => r.CreatedAt))
+                {
+                    <tr>
+                        <td>@r.Engine</td>
+                        <td>@r.State</td>
+                        <td>@r.CreatedAt.ToString("HH:mm:ss")</td>
+                        <td><a href="@($"/runs/{r.Id.Value:D}")">@r.Id.Value.ToString("N").Substring(0, 8)</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<section class="ws-section">
+    <h2>Project budgets</h2>
+    @if (_budgets.Count == 0)
+    {
+        <p class="muted">No project budget rows yet — they're created lazily on first run.</p>
+    }
+    else
+    {
+        <table class="run-table">
+            <thead><tr><th>Project</th><th>Today</th><th>Daily cap</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var b in _budgets.OrderBy(b => _projectName(b.ProjectId)))
+                {
+                    <tr>
+                        <td>@_projectName(b.ProjectId)</td>
+                        <td>$@b.TodaysSpendUsd.ToString("F4")</td>
+                        <td>@(b.DailyCapUsd is decimal cap ? $"${cap:F2}" : "—")</td>
+                        <td>@(b.DailyCapUsd is decimal c && b.TodaysSpendUsd >= c ? "OPEN (blocked)" : "ok")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private System.Threading.Timer? _timer;
+    private IReadOnlyDictionary<EngineName, EngineHealth> _health = new Dictionary<EngineName, EngineHealth>();
+    private IReadOnlyList<Loom.Domain.Runs.Run> _active = [];
+    private IReadOnlyList<ProjectBudget> _budgets = [];
+    private Dictionary<Guid, string> _projectNames = [];
+    private Func<Guid, string> _projectName = _ => "—";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+        _timer = new System.Threading.Timer(_ => InvokeAsync(ReloadAsync),
+            state: null, dueTime: TimeSpan.FromSeconds(5), period: TimeSpan.FromSeconds(5));
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    private async Task ReloadAsync()
+    {
+        _health = Health.All();
+        _active = await Runs.GetActiveAsync();
+        _budgets = await BudgetRepo.ListAsync();
+        _projectNames = (await Projects.ListAsync())
+            .ToDictionary(p => p.Id, p => p.Name);
+        _projectName = pid => _projectNames.TryGetValue(pid, out var n) ? n : pid.ToString("N").Substring(0, 8);
+        StateHasChanged();
+    }
+}

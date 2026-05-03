@@ -2,6 +2,7 @@ using System.Reflection;
 using Loom.Application.Abstractions;
 using Loom.Application.Agents;
 using Loom.Application.Artifacts;
+using Loom.Application.BudgetControl;
 using Loom.Application.Common;
 using Loom.Application.Conversations;
 using Loom.Application.Features;
@@ -54,6 +55,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IAnnotationRepository, AnnotationRepository>();
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+        services.AddScoped<IProjectBudgetRepository, ProjectBudgetRepository>();
         // Note: IOutboxWriter has no DI registration — the LoomDbContext
         // performs the outbox flush inline inside its overridden
         // SaveChangesAsync. Registering the writer here would create a
@@ -78,6 +80,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IArtifactService, ArtifactService>();
+
+        // Phase-5: budget control + engine health monitor.
+        services.AddScoped<IBudgetService, BudgetService>();
+        services.AddSingleton<IEngineHealthMonitor, InMemoryEngineHealthMonitor>();
 
         // Notification channel stubs — InApp lives in Loom.Web (registered
         // there). Teams + Email are stubs in Phase 3; real impls land in

@@ -326,3 +326,18 @@ public sealed class SubscriptionRepository(LoomDbContext db) : ISubscriptionRepo
 
     public void Remove(Loom.Domain.Notifications.Subscription subscription) => db.Subscriptions.Remove(subscription);
 }
+
+public sealed class ProjectBudgetRepository(LoomDbContext db) : IProjectBudgetRepository
+{
+    public Task<Loom.Domain.BudgetControl.ProjectBudget?> GetByProjectAsync(Guid projectId, CancellationToken ct = default) =>
+        db.ProjectBudgets.FirstOrDefaultAsync(b => b.ProjectId == projectId, ct);
+
+    public async Task<IReadOnlyList<Loom.Domain.BudgetControl.ProjectBudget>> ListAsync(CancellationToken ct = default) =>
+        await db.ProjectBudgets.ToListAsync(ct);
+
+    public Task AddAsync(Loom.Domain.BudgetControl.ProjectBudget budget, CancellationToken ct = default)
+    {
+        db.ProjectBudgets.Add(budget);
+        return Task.CompletedTask;
+    }
+}

@@ -1,4 +1,5 @@
 using Loom.Application.Abstractions;
+using Loom.Application.BudgetControl;
 using Loom.Domain.Common;
 using Loom.Domain.Common.DomainEvents;
 using Loom.Domain.Nodes;
@@ -12,7 +13,9 @@ public sealed class RunService(
     IAssembledPromptRepository assembledPrompts,
     IDomainEventCollector events,
     IUnitOfWork uow,
-    ISystemClock clock) : IRunService
+    ISystemClock clock,
+    IFeatureNodeRepository? featureNodes = null,
+    IBudgetService? budgetService = null) : IRunService
 {
     public async Task<Run> QueueAsync(
         NodeId nodeId,
@@ -23,6 +26,25 @@ public sealed class RunService(
         IReadOnlyList<FragmentRef> fragments,
         CancellationToken ct = default)
     {
+        // Phase-5 budget gate: if a project budget service is wired and we
+        // can resolve the node's project, refuse to queue when the
+        // circuit breaker is open. Use the per-run cap as the reservation
+        // estimate (no per-call cost forecasting yet).
+        if (budgetService is not null && featureNodes is not null)
+        {
+            var node = await featureNodes.GetAsync(nodeId, ct);
+            if (node is not null)
+            {
+                var estimate = budgets.MaxCostUsd ?? 0m;
+                var allowed = await budgetService.TryReserveAsync(node.ProjectId, estimate, ct);
+                if (!allowed)
+                {
+                    throw new DomainException(
+                        $"Project {node.ProjectId} has hit its daily $-cap; refusing to queue run.");
+                }
+            }
+        }
+
         var run = Run.Queue(nodeId, workflowId, stepId, engine, budgets, fragments, clock.UtcNow);
         await runs.AddAsync(run, ct);
         events.Add(new RunQueued(run.Id, nodeId, workflowId, stepId, engine, clock.UtcNow));
@@ -74,6 +96,7 @@ public sealed class RunService(
         run.Complete(cost, clock.UtcNow);
         events.Add(new RunCompleted(run.Id, cost.UsdAmount, clock.UtcNow));
         await uow.SaveChangesAsync(ct);
+        await RecordSpendAsync(run, cost.UsdAmount, ct);
     }
 
     public async Task FailAsync(RunId runId, string reason, Cost? partialCost, CancellationToken ct = default)
@@ -82,6 +105,24 @@ public sealed class RunService(
         run.Fail(reason, partialCost, clock.UtcNow);
         events.Add(new RunFailed(run.Id, reason, clock.UtcNow));
         await uow.SaveChangesAsync(ct);
+        if (partialCost is not null)
+        {
+            await RecordSpendAsync(run, partialCost.UsdAmount, ct);
+        }
+    }
+
+    private async Task RecordSpendAsync(Run run, decimal usd, CancellationToken ct)
+    {
+        if (budgetService is null || featureNodes is null || usd <= 0m)
+        {
+            return;
+        }
+        var node = await featureNodes.GetAsync(run.NodeId, ct);
+        if (node is null)
+        {
+            return;
+        }
+        await budgetService.RecordSpendAsync(node.ProjectId, usd, ct);
     }
 
     public async Task PauseForHumanAsync(RunId runId, CancellationToken ct = default)
