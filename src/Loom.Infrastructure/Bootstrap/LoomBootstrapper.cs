@@ -61,7 +61,18 @@ public sealed class LoomBootstrapper(
         {
             try
             {
-                await db.Database.MigrateAsync(cancellationToken);
+                // SQLite is the no-install dev provider; its schema is built
+                // from the model directly because the SQL-Server-shaped
+                // migrations don't run on it.
+                var provider = sp.GetService<LoomDatabaseProvider>();
+                if (provider?.Kind == DatabaseProviderKind.Sqlite)
+                {
+                    await db.Database.EnsureCreatedAsync(cancellationToken);
+                }
+                else
+                {
+                    await db.Database.MigrateAsync(cancellationToken);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

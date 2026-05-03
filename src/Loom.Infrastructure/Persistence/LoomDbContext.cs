@@ -58,7 +58,13 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasDefaultSchema("loom");
+        // SQLite has no notion of schemas; setting a default schema is silently
+        // ignored on most paths but EnsureCreated trips on it. Only apply on
+        // relational providers that support schemas (SQL Server today).
+        if (Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            modelBuilder.HasDefaultSchema("loom");
+        }
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoomDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }

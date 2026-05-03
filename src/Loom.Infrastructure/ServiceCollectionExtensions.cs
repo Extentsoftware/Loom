@@ -33,13 +33,28 @@ public static class ServiceCollectionExtensions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
+        // Provider auto-detect: SQLite connection strings start with
+        // "Data Source=" and don't contain "Server=". Anything else is
+        // SQL Server. SQLite is the no-install dev path; production stays
+        // SQL Server.
+        var isSqlite = connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
+            && !connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase);
+
         services.AddDbContext<LoomDbContext>(options =>
         {
-            options.UseSqlServer(connectionString, sql =>
+            if (isSqlite)
             {
-                sql.MigrationsHistoryTable("__ef_migrations_history", "loom");
-            });
+                options.UseSqlite(connectionString);
+            }
+            else
+            {
+                options.UseSqlServer(connectionString, sql =>
+                {
+                    sql.MigrationsHistoryTable("__ef_migrations_history", "loom");
+                });
+            }
         });
+        services.AddSingleton(new LoomDatabaseProvider(isSqlite ? DatabaseProviderKind.Sqlite : DatabaseProviderKind.SqlServer));
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<LoomDbContext>());
         services.AddScoped<IFeatureNodeRepository, FeatureNodeRepository>();
@@ -171,3 +186,6 @@ internal sealed class SystemClock : ISystemClock
 {
     public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
 }
+
+public enum DatabaseProviderKind { SqlServer, Sqlite }
+public sealed record LoomDatabaseProvider(DatabaseProviderKind Kind);
