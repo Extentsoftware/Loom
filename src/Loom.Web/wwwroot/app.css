@@ -1,0 +1,300 @@
+/*
+  Loom — foundation styles.
+
+  These are intentionally restrained. The full editorial aesthetic from
+  the screen mockups (Fraunces serif display, citron accent, dark canvas)
+  is deferred to a styling slice. What you have here is enough character
+  that the app does not look like a default ASP.NET starter, layered with
+  CSS variables so the future polish can swap tokens without rewriting.
+*/
+
+:root {
+  --bg: #0d0c0a;
+  --surface: #181614;
+  --surface-2: #211e1a;
+  --border: #2a2622;
+  --border-2: #3a352e;
+  --text: #ece8e1;
+  --text-2: #a59e92;
+  --text-3: #6b655c;
+  --accent: #d4ed5b;
+  --amber: #e8a548;
+  --cyan: #6ec8d6;
+  --sage: #8db870;
+  --coral: #e87158;
+  --violet: #b89ce0;
+  --body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ─── App shell ───────────────────────────────────────────────────────── */
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  gap: 24px;
+}
+
+.brand {
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+}
+.brand::after { content: '·'; color: var(--accent); margin-left: 6px; }
+
+.proj-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  padding: 5px 10px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+.proj-pill .dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.nav-search {
+  flex: 1;
+  max-width: 480px;
+  padding: 7px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.nav-links { display: flex; align-items: center; gap: 18px; margin-left: auto; }
+.nav-link {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 6px 0;
+  cursor: pointer;
+}
+.nav-link-active { color: var(--text); border-bottom: 1px solid var(--accent); }
+.nav-link-disabled { color: var(--text-3); cursor: not-allowed; }
+
+.user-menu { display: flex; align-items: center; gap: 12px; margin-left: 12px; }
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--amber), var(--coral));
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.avatar-dev { background: linear-gradient(135deg, var(--text-3), var(--text-2)); }
+.signout {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+.signout:hover { color: var(--text); }
+
+.app-main {
+  flex: 1;
+  max-width: 1480px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 60px 40px 120px;
+}
+
+/* ─── Page chrome ─────────────────────────────────────────────────────── */
+.page-head {
+  margin-bottom: 48px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.page-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: 0 0 16px 0;
+}
+.page-title em { font-style: italic; color: var(--accent); }
+.page-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.page-meta span { margin-right: 20px; }
+
+/* ─── Tree rendering ──────────────────────────────────────────────────── */
+.tree-init {
+  margin-bottom: 32px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.init-head {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+.init-type {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+}
+.init-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.init-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: auto;
+}
+.init-intent {
+  color: var(--text-2);
+  font-size: 13px;
+  margin: 12px 0 18px 0;
+  max-width: 720px;
+}
+.init-empty {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin: 12px 0 0 0;
+  letter-spacing: 0.05em;
+}
+
+.tree {
+  border-left: 1px solid var(--border-2);
+  margin-top: 14px;
+}
+.tree-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0 10px 16px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.tree-row:last-child { border-bottom: none; }
+.tree-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  width: 12px; height: 1px;
+  background: var(--border-2);
+}
+.tree-icon {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+}
+.tree-title { font-size: 14px; color: var(--text); }
+.tree-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.tree-status.phase-discovery { color: var(--violet); }
+.tree-status.phase-enrich { color: var(--cyan); }
+.tree-status.phase-build { color: var(--accent); }
+.tree-status.phase-test { color: var(--amber); }
+.tree-status.phase-done { color: var(--sage); }
+.tree-status.phase-archived { color: var(--text-3); }
+
+/* ─── Empty state ─────────────────────────────────────────────────────── */
+.empty-state {
+  padding: 48px;
+  background: var(--surface);
+  border: 1px dashed var(--border-2);
+  border-radius: 6px;
+  text-align: center;
+}
+.empty-state h2 {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  font-size: 28px;
+  letter-spacing: -0.01em;
+  margin: 0 0 16px 0;
+}
+.empty-state h2 em { color: var(--accent); }
+.empty-state p {
+  color: var(--text-2);
+  max-width: 540px;
+  margin: 0 auto 18px auto;
+  line-height: 1.55;
+}
+.code-hint {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--bg);
+  padding: 10px 16px;
+  border: 1px solid var(--border-2);
+  border-radius: 3px;
+  margin: 8px 0 0 0;
+}
+
+.loading {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+.muted { color: var(--text-3); }
+
+/* Blazor error UI override */
+#blazor-error-ui {
+  background: var(--coral);
+  color: var(--bg);
+  bottom: 0;
+  box-shadow: 0 -1px 2px rgba(0,0,0,0.5);
+  display: none;
+  left: 0;
+  padding: 14px 24px;
+  position: fixed;
+  width: 100%;
+  z-index: 1000;
+  font-size: 13px;
+}
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: 18px; top: 14px; }

@@ -68,6 +68,24 @@ dotnet tool install --global dotnet-ef
 dotnet ef database update --project src/Loom.Infrastructure --startup-project src/Loom.Web
 ```
 
+**Seed sample data (optional, for local development)**
+
+```bash
+dotnet run --project tools/seed
+```
+
+**Run the web app**
+
+```bash
+dotnet run --project src/Loom.Web
+```
+
+By default this listens on `https://localhost:5001`. In Development the
+Entra ID auth flow is bypassed (`AzureAd:Enabled = false` in
+`appsettings.Development.json`); for any other environment, fill in the
+`AzureAd` section in configuration with a real tenant id, client id, and
+domain before running.
+
 ## Working with AI tools in this repo
 
 This repo is designed to be edited with AI assistance. See `CLAUDE.md` at the root — it describes how Claude Code, Cursor, and other AI tools should treat the codebase. The same content is mirrored to `.cursorrules` for Cursor users.

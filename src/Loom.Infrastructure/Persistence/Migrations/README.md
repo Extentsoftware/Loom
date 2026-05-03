@@ -1,9 +1,9 @@
 # Migrations — note
 
 The initial migration in this folder (`20260502_Initial.cs`) was authored by hand
-during the first commit so the repo would be buildable end-to-end without yet
-having a `Loom.Web` startup project. Once `Loom.Web` exists, regenerate the
-migration via the standard EF tooling and remove this note:
+during the first commit, before `Loom.Web` existed as a startup project. Now
+that it does, regenerate the migration via the standard EF tooling and remove
+this note:
 
 ```bash
 # Remove the hand-authored migration
@@ -18,12 +18,7 @@ dotnet ef migrations add Initial \
   --output-dir Persistence/Migrations
 ```
 
-Until then, the design-time factory at `Persistence/LoomDbContextFactory.cs`
-provides what the EF tooling needs. The connection string defaults to
-`(localdb)\\MSSQLLocalDB` and can be overridden via the
-`LOOM_DESIGN_TIME_CONNECTION` environment variable.
-
-After the regeneration, diff the new migration against the manual one and
+After regenerating, diff the new migration against the manual one and
 ensure the column types, indexes, and FK behaviours match what the integration
 tests (`tests/Loom.Infrastructure.Tests/Persistence/RoundTripTests.cs`) expect.
 

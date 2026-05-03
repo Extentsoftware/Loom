@@ -1,0 +1,153 @@
+@*
+    Operating Picture — the tree home. Queries the configured project's
+    root nodes and, for each, lists immediate children. Real data flows
+    via IFeatureNodeRepository; no mocks, no placeholder copy.
+
+    What this page deliberately does NOT do (yet):
+      - render the full descendant tree (only one level)
+      - show live agent runs (needs SignalR + RunService)
+      - filter by phase / owner / recency (needs query primitives)
+      - link nodes to a workspace page (workspace doesn't exist yet)
+
+    Each of those lands in a follow-up slice. The point of this slice is
+    to prove the wiring end-to-end: page → repository → DbContext → MSSQL
+    → rendered HTML, with auth in front.
+*@
+
+@page "/"
+@attribute [Authorize]
+
+@inject IProjectRepository Projects
+@inject IFeatureNodeRepository Nodes
+
+<PageTitle>Operating picture · Loom</PageTitle>
+
+<header class="page-head">
+    <h1 class="page-title">Operating <em>picture</em></h1>
+    <p class="page-meta">
+        @if (_loaded)
+        {
+            <span>@_totalNodes nodes</span>
+            <span>@_initiatives.Count initiatives</span>
+            <span>updated @DateTime.UtcNow.ToString("HH:mm")</span>
+        }
+        else
+        {
+            <span>loading…</span>
+        }
+    </p>
+</header>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading project…</p>
+}
+else if (_currentProject is null)
+{
+    <section class="empty-state">
+        <h2>No project yet.</h2>
+        <p>
+            Loom needs at least one project to work against. Run the seed
+            tool or create a project via the database to get started.
+            Project creation through the UI arrives in a follow-up slice.
+        </p>
+        <pre class="code-hint">dotnet run --project tools/seed</pre>
+    </section>
+}
+else if (_initiatives.Count == 0)
+{
+    <section class="empty-state">
+        <h2>No nodes in <em>@_currentProject.Name</em> yet.</h2>
+        <p>
+            Once the kickoff workflow is wired up, dropping a Teams
+            transcript here will create the first feature tree. Until
+            then, seed nodes can be created via the seeding tool.
+        </p>
+    </section>
+}
+else
+{
+    @foreach (var (root, children) in _initiatives)
+    {
+        <article class="tree-init">
+            <header class="init-head">
+                <span class="init-type">@root.Type.ToString().ToUpperInvariant()</span>
+                <span class="init-title">@root.Title</span>
+                <span class="init-meta">@root.Phase</span>
+            </header>
+            @if (!string.IsNullOrWhiteSpace(root.Intent))
+            {
+                <p class="init-intent">@root.Intent</p>
+            }
+
+            @if (children.Count == 0)
+            {
+                <p class="init-empty">No children yet.</p>
+            }
+            else
+            {
+                <div class="tree">
+                    @foreach (var child in children)
+                    {
+                        <div class="tree-row">
+                            <span class="tree-icon">@TypeAbbrev(child.Type)</span>
+                            <span class="tree-title">@child.Title</span>
+                            <span class="tree-status @PhaseClass(child.Phase)">@child.Phase</span>
+                        </div>
+                    }
+                </div>
+            }
+        </article>
+    }
+}
+
+@code {
+    private bool _loaded;
+    private Project? _currentProject;
+    private List<(FeatureNode root, IReadOnlyList<FeatureNode> children)> _initiatives = [];
+    private int _totalNodes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // v1: a Loom deployment hosts a single primary project. Multi-project
+        // navigation arrives once the methodology owner needs it; for now,
+        // the first-by-name project is the target.
+        var allProjects = await Projects.ListAsync();
+        _currentProject = allProjects.FirstOrDefault();
+
+        if (_currentProject is not null)
+        {
+            var roots = await Nodes.GetRootsAsync(_currentProject.Id);
+            var loaded = new List<(FeatureNode, IReadOnlyList<FeatureNode>)>(roots.Count);
+            foreach (var root in roots)
+            {
+                var children = await Nodes.GetChildrenAsync(root.Id);
+                loaded.Add((root, children));
+                _totalNodes += 1 + children.Count;
+            }
+            _initiatives = loaded;
+        }
+
+        _loaded = true;
+    }
+
+    private static string TypeAbbrev(NodeType t) => t switch
+    {
+        NodeType.Initiative => "INIT",
+        NodeType.Feature => "FEAT",
+        NodeType.Capability => "CAP",
+        NodeType.Slice => "SLICE",
+        _ => t.ToString().ToUpperInvariant()
+    };
+
+    private static string PhaseClass(NodePhase p) => p switch
+    {
+        NodePhase.Discovery => "phase-discovery",
+        NodePhase.Enrich => "phase-enrich",
+        NodePhase.Build => "phase-build",
+        NodePhase.Test => "phase-test",
+        NodePhase.Done => "phase-done",
+        NodePhase.Archived => "phase-archived",
+        _ => ""
+    };
+}
