@@ -81,3 +81,71 @@ Pre-alpha. See `docs/design/loom-design.md` for the full design overview and `do
 ## License
 
 Proprietary, internal use.
+
+
+
+
+
+# Loom — how it works, and why
+
+## The thinking behind it
+
+Software teams now have powerful AI tools, but each one creates a private context bubble. The product owner's ChatPRD session, the developer's Cursor session, the tester's Claude conversation — each holds context the others can't see. Work that should compound across the team instead evaporates at the edges of individual sessions. Meanwhile, the older problems haven't gone away: PRDs drift from designs, designs drift from code, code drifts from tests, and the methodology that's supposed to hold it all together lives in a wiki nobody reads.
+
+Loom is built on three convictions about how to fix this.
+
+The first is that **the unit of work is not a ticket**. Tickets fragment thinking into cards that move through columns; the moment you break a feature into Jira tasks, you've lost the thread of *why* it exists. Loom's unit is the **context node** — a living workspace that holds intent, outcomes, constraints, open questions, attached artifacts, and a stream of activity. The same shape applies at every level: an initiative is a context node, a feature is a context node, a slice ready for a developer is a context node. Status is *derived* from what's actually happening, not set by someone dragging a card.
+
+The second is that **methodology should be executable, not aspirational**. Most teams have a written methodology and a real one, and they aren't the same. Loom encodes the team's working practices as a library of small, reusable **prompt fragments** — identity ("you are a PO discovery assistant"), methodology ("separate problems from solutions"), project ("this codebase uses these conventions"), domain ("our glossary"), skill ("extract acceptance criteria"). Every AI run on every node assembles these fragments into context. When the team learns a new lesson, it becomes a fragment, and every future run benefits. The methodology compounds instead of decaying.
+
+The third is that **AI tools should compete on what they're good at, not on owning context**. Loom doesn't replace Claude, Cursor, or Copilot — it sits underneath them. Through the Model Context Protocol, any AI tool the team already uses can read the current node's assembled context and write contributions back. The PO's ChatPRD draft, the developer's Cursor session, and the tester's Claude conversation are all working from the same substrate. People stay in their preferred tools; context stays coherent across them.
+
+## Two human gates, everything else automated
+
+Loom makes one structural commitment about where humans get involved: there are exactly **two gates** between concept and build. After kickoff, the PO reviews and accepts the proposed feature tree. After enrichment, the relevant role (UX, tech lead, security) reviews and accepts the artifacts produced for each node. Everything else — extracting structure from a transcript, retrieving similar prior work, decomposing into capabilities, drafting acceptance criteria, generating wireframes, sketching architecture — happens automatically but auditably.
+
+The discipline isn't "remove humans from the loop". It's "spend human attention where it matters most". The PO gate is where the team commits to a shape; the role gates are where craft expertise lands. Everywhere else, the cost of automation is low and the value of speed is high.
+
+## The lifecycle, end to end
+
+A feature begins with a meeting. The PO drops the Teams transcript into Loom, and a kickoff workflow runs in seconds. It reads the transcript, extracts a structured **Discovery object** — problem statement, desired outcomes, constraints, stakeholders, hypotheses, open questions, and crucially any *dissent* from the meeting. It searches the team's history for similar prior work and surfaces what was decided last time. Then it proposes a tree: probably a feature with a few candidate capabilities under it, each with its own intent and questions.
+
+The PO sits down to the **kickoff gate** with three panes: the transcript on the left, the extracted discovery in the middle, the proposed tree on the right. They edit any field, drag nodes around, split or merge them, then accept. The whole gate is intentionally friction-bearing — this is the moment where the team commits to a shape, and one-click acceptance would be exactly the wrong design.
+
+Once accepted, each node enters **enrichment**. Multiple agent runs fire in parallel against the same node, each composing different fragments. A PO assistant drafts acceptance criteria. A UX designer agent generates wireframes — real React stubs or Figma frames, attached to the node. An architect agent sketches a high-level approach and identifies risks. A risk reviewer enumerates what could go wrong. Each artifact is attached to the node with full provenance: which fragments produced it, which inputs it consumed, which run it came from.
+
+The relevant humans get notified — UX about the wireframes, the tech lead about the architecture sketch — and they open the node in their preferred tool. UX inspects the wireframes in Figma, leaves structured annotations ("this CTA hierarchy is wrong because…"). Tech lead annotates the architecture. Annotations don't just sit there: they automatically become **feedback fragments** attached to the node. When the agent re-runs to iterate, it composes the original fragments plus the new feedback, and the next version carries memory of what was rejected and why. Recurring annotations across many features eventually get promoted to permanent project fragments — which is how the team's design taste gets encoded in the system rather than living in one person's head.
+
+When a slice has cleared its gates, it's **ready for build**. The developer in Cursor or Claude Code asks for context on that slice, and Loom's MCP server returns the full assembled package: intent, accepted criteria, wireframe links, architecture notes, parent feature rationale, similar prior code. The handoff from concept-side to build-side is a single tool call. The developer codes; commits push back through the same provenance machinery; tests get drafted from acceptance criteria; the build runs; the merge happens. Each step updates the node, so anyone glancing at the **Operating Picture** — Loom's tree home — sees real status pulses derived from what's actually happening, not what someone claimed in standup.
+
+## What the team experiences
+
+The PO opens Loom in the morning and sees the Operating Picture: a tree of every initiative, with phase pulses showing which nodes are moving and which have stalled. Two notifications at the top: "your kickoff for CVV revalidation is ready to review" and "Jules approved the saved-card wireframes". She opens the kickoff, scans the discovery, edits one outcome, and accepts.
+
+The UX designer sees an annotation request on a wireframe. He opens it in Figma directly from the Loom notification, leaves four annotations, and goes back to other work. Behind the scenes, those annotations have already become a feedback fragment; the next wireframe iteration runs overnight on cheaper background compute and is waiting for him in the morning.
+
+The developer is in Cursor, finishing a different feature. She types "load context for saved-card-list-component". Cursor pulls the full node context via MCP — acceptance criteria the PO accepted, wireframes UX approved, architecture notes the tech lead signed off on, the relevant project conventions for React and MSSQL patterns. She codes against real specifications, not interpreted ones, and her PR description is generated from the node's intent.
+
+The tester opens the node when the PR lands. The same acceptance criteria that anchored development now anchor testing; test cases get drafted automatically from them; he reviews and tightens them. The trace from intent through criteria through tests is a query, not a hunt.
+
+The methodology owner — usually the tech lead or a senior PO — opens the **fragment library** weekly. She sees usage statistics: which fragments compose into the most runs, which produce consistently good output, which generate annotations. Three new feedback patterns have recurred enough times to be promoted to permanent fragments; she reviews and accepts. The team's methodology improved this week, automatically, because the system noticed what the team was correcting.
+
+## What's different about this
+
+Three things, beyond the surface-level "AI tools that talk to each other".
+
+The **fluid hierarchy** matters more than it looks. There are no tickets, no columns, no story points to argue about. A feature is a tree of nodes that can be split, merged, promoted, or demoted at any time without losing history. Status emerges from real activity. The PO is freed from being a card-shuffler and can focus on intent and decisions.
+
+The **fragment library** matters most of all. It's the difference between a tool that helps you do this feature faster and a tool that makes the team better at every subsequent feature. Each annotation, each correction, each accepted artifact teaches the system; recurring patterns become fragments; fragments compose into every future run. The methodology you wish your team practised becomes the methodology your team actually practises, because it's executed every time anyone does anything.
+
+The **provenance discipline** matters when something goes wrong. Every artifact — a draft, a wireframe, a piece of code — carries a chain back to the run that produced it, the fragments composed into that run, the inputs consumed, the human edits applied since. When a wireframe looks wrong six weeks later, you can answer not just "what did it look like" but "why did it end up that way, and who accepted it". This is what makes AI-augmented teams trustworthy at scale; without it, the work is fast but the team can't reason about it.
+
+## What Loom is not
+
+It is not a project management tool. It does not track velocity, sprint goals, or time. It does not replace Jira or Azure DevOps for compliance, audit, or whatever the broader organisation needs from a system of record — features link out to those systems and stay in sync via webhooks. It is not a chat product; the AI conversations it captures are work artifacts attached to nodes, not standalone threads.
+
+It is also not a finished product. It is a working hypothesis about a methodology, encoded as software, that will earn its keep only if the team using it is honest about which parts make work better and which parts add ceremony. The fragment library is the heart of that test: if the team adds fragments and runs improve, Loom is doing its job. If the library bloats with unused content, that's a signal the methodology needs rethinking, not the tool.
+
+## In one paragraph
+
+Loom is a methodology hub for AI-augmented software development. Features live as a hierarchical tree of context nodes, each with structured intent and a stream of attached artifacts. The team's working practices — how they frame problems, decompose work, validate designs, write tests — are encoded as a library of versioned prompt fragments. AI tools across the team's stack (Claude, Cursor, Foundry-hosted agents) read assembled context from Loom and write contributions back, with full provenance for every artifact. Two human gates anchor each feature: the PO accepts the proposed shape after kickoff, and role-specific gates accept the artifacts after enrichment. Everything else is automated. The methodology compounds as feedback annotations become reusable fragments, so every feature makes the team better at the next one.
