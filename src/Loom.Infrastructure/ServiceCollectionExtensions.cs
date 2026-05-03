@@ -1,6 +1,7 @@
 using System.Reflection;
 using Loom.Application.Abstractions;
 using Loom.Application.Agents;
+using Loom.Application.Artifacts;
 using Loom.Application.Common;
 using Loom.Application.Conversations;
 using Loom.Application.Features;
@@ -76,6 +77,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IArtifactService, ArtifactService>();
 
         // Notification channel stubs — InApp lives in Loom.Web (registered
         // there). Teams + Email are stubs in Phase 3; real impls land in

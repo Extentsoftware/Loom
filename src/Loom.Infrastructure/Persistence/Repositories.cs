@@ -140,10 +140,14 @@ public sealed class RunRepository(LoomDbContext db) : IRunRepository
 public sealed class ArtifactRepository(LoomDbContext db) : IArtifactRepository
 {
     public Task<Artifact?> GetAsync(ArtifactId id, CancellationToken ct = default) =>
-        db.Artifacts.FirstOrDefaultAsync(a => a.Id == id, ct);
+        db.Artifacts.Include(a => a.Versions).FirstOrDefaultAsync(a => a.Id == id, ct);
 
     public async Task<IReadOnlyList<Artifact>> GetByNodeAsync(NodeId nodeId, CancellationToken ct = default) =>
-        await db.Artifacts.Where(a => a.NodeId == nodeId).OrderByDescending(a => a.UpdatedAt).ToListAsync(ct);
+        await db.Artifacts
+            .Include(a => a.Versions)
+            .Where(a => a.NodeId == nodeId)
+            .OrderByDescending(a => a.UpdatedAt)
+            .ToListAsync(ct);
 
     public Task AddAsync(Artifact artifact, CancellationToken ct = default)
     {

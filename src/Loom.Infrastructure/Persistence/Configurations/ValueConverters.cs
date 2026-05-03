@@ -40,6 +40,9 @@ internal static class ValueConverters
     public static readonly ValueConverter<ArtifactId, Guid> ArtifactId =
         new(id => id.Value, g => new ArtifactId(g));
 
+    public static readonly ValueConverter<ArtifactVersionId, Guid> ArtifactVersionId =
+        new(id => id.Value, g => new ArtifactVersionId(g));
+
     public static readonly ValueConverter<WorkflowId, Guid> WorkflowId =
         new(id => id.Value, g => new WorkflowId(g));
 

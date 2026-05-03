@@ -26,7 +26,62 @@ internal sealed class ArtifactConfiguration : IEntityTypeConfiguration<Artifact>
             x.Property(p => p.Url).HasColumnName("canonical_url").HasMaxLength(2000);
         });
 
+        b.OwnsOne(a => a.Lock, x =>
+        {
+            x.Property(p => p.HolderUserId).HasColumnName("lock_holder_user_id");
+            x.Property(p => p.AcquiredAt).HasColumnName("lock_acquired_at");
+            x.Property(p => p.ExpiresAt).HasColumnName("lock_expires_at");
+        });
+
+        // Ignore the derived current-version property — it is computed from
+        // the version collection, not persisted.
+        b.Ignore(a => a.CurrentVersion);
+
+        b.HasMany(a => a.Versions)
+            .WithOne()
+            .HasForeignKey(v => v.ArtifactId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Metadata.FindNavigation(nameof(Artifact.Versions))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
+
         b.HasIndex(a => a.NodeId);
         b.HasIndex(a => a.Kind);
+    }
+}
+
+internal sealed class ArtifactVersionConfiguration : IEntityTypeConfiguration<ArtifactVersion>
+{
+    public void Configure(EntityTypeBuilder<ArtifactVersion> b)
+    {
+        b.ToTable("artifact_versions");
+
+        b.HasKey(v => v.Id);
+        b.Property(v => v.Id).HasConversion(ValueConverters.ArtifactVersionId);
+        b.Property(v => v.ArtifactId).HasConversion(ValueConverters.ArtifactId);
+        b.Property(v => v.VersionNumber).IsRequired();
+        b.Property(v => v.Reason).HasMaxLength(500);
+        b.Property(v => v.CreatedAt).IsRequired();
+
+        b.OwnsOne(v => v.Author, x =>
+        {
+            x.Property(p => p.Kind).HasColumnName("author_kind").HasConversion<int>().IsRequired();
+            x.Property(p => p.Id).HasColumnName("author_id").IsRequired();
+        });
+
+        b.OwnsOne(v => v.Content, x =>
+        {
+            x.Property(p => p.Uri).HasColumnName("content_uri").HasMaxLength(2000).IsRequired();
+            x.Property(p => p.ContentType).HasColumnName("content_type").HasMaxLength(200).IsRequired();
+            x.Property(p => p.SizeBytes).HasColumnName("content_size_bytes");
+        });
+
+        b.OwnsOne(v => v.Preview, x =>
+        {
+            x.Property(p => p.Uri).HasColumnName("preview_uri").HasMaxLength(2000);
+            x.Property(p => p.ContentType).HasColumnName("preview_content_type").HasMaxLength(200);
+            x.Property(p => p.SizeBytes).HasColumnName("preview_size_bytes");
+        });
+
+        b.HasIndex(v => new { v.ArtifactId, v.VersionNumber }).IsUnique();
     }
 }

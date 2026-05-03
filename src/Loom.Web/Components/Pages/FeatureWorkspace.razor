@@ -11,6 +11,7 @@
 @rendermode InteractiveServer
 
 @inject IFeatureService Features
+@inject IArtifactRepository ArtifactRepo
 @inject NavigationManager Nav
 
 <PageTitle>@(_view?.Title ?? "Loading…") · Loom</PageTitle>
@@ -129,6 +130,30 @@ else
     </section>
 
     <section class="ws-section">
+        <h2>Artifacts (@_artifacts.Count)</h2>
+        @if (_artifacts.Count == 0)
+        {
+            <p class="muted">No artifacts attached.</p>
+        }
+        else
+        {
+            <ul class="artifact-list">
+                @foreach (var a in _artifacts)
+                {
+                    <li>
+                        <a href="@($"/artifacts/{a.Id.Value:D}")">@a.Title</a>
+                        <span class="muted"> · @a.Kind · v@(a.CurrentVersion?.VersionNumber ?? 0)</span>
+                        @if (a.Lock is not null && a.Lock.IsActiveAt(DateTimeOffset.UtcNow))
+                        {
+                            <span class="muted"> · 🔒 locked</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="ws-section">
         <h2>Recent runs (@_view.RecentRuns.Count)</h2>
         @if (_view.RecentRuns.Count == 0)
         {
@@ -169,6 +194,7 @@ else
     private FeatureWorkspaceView? _view;
     private NodePhase? _nextPhase;
     private HubConnection? _hub;
+    private IReadOnlyList<Loom.Domain.Artifacts.Artifact> _artifacts = [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -212,6 +238,7 @@ else
     {
         var typedId = new Loom.Domain.Nodes.NodeId(NodeId);
         _view = await Features.GetWorkspaceAsync(typedId);
+        _artifacts = await ArtifactRepo.GetByNodeAsync(typedId);
         _nextPhase = NextPhase(_view?.Phase);
         _loaded = true;
         StateHasChanged();

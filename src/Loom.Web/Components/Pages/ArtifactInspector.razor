@@ -1,0 +1,281 @@
+@*
+    Artifact Inspector. Phase-4 read-mostly UI: surfaces the version chain
+    (with author + reason + timestamps), the current preview pointer, the
+    lock state (with acquire/release controls for the holder), and a list
+    of annotations with their polymorphic target locator. Adding an
+    annotation is a one-textbox form; richer locators (Figma frames, code
+    line ranges) ship when the source-system plugins land in Phase 4b.
+*@
+
+@page "/artifacts/{ArtifactId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject IArtifactRepository ArtifactRepo
+@inject IArtifactService Artifacts
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>@(_artifact?.Title ?? "Artifact") · Loom</PageTitle>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_artifact is null)
+{
+    <section class="empty-state">
+        <h2>Artifact not found.</h2>
+        <p><a href="/">Back to Operating Picture</a></p>
+    </section>
+}
+else
+{
+    <header class="page-head">
+        <p class="page-meta">
+            <a href="@($"/n/{_artifact.NodeId.Value:D}")">← Target node</a>
+        </p>
+        <h1 class="page-title">@_artifact.Title</h1>
+        <p class="page-meta">
+            Kind: <strong>@_artifact.Kind</strong>
+            · Canonical: <strong>@_artifact.Canonical.Store</strong> / <code>@_artifact.Canonical.ExternalId</code>
+            @if (_artifact.LastSyncedAt is not null)
+            {
+                <span> · Last synced @_artifact.LastSyncedAt.Value.ToString("u")</span>
+            }
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <h2>Lock</h2>
+        @if (_artifact.Lock is null || !_artifact.Lock.IsActiveAt(DateTimeOffset.UtcNow))
+        {
+            <p class="muted">Unlocked.</p>
+            <button class="btn-primary" @onclick="AcquireAsync" disabled="@_busy">
+                @(_busy ? "Acquiring…" : "Acquire 15-minute lock")
+            </button>
+        }
+        else
+        {
+            var heldByMe = _artifact.Lock.HolderUserId == CurrentUser.GetUserId();
+            <p>
+                Locked until <strong>@_artifact.Lock.ExpiresAt.ToString("u")</strong>
+                @if (heldByMe)
+                {
+                    <span> (you)</span>
+                }
+                else
+                {
+                    <span> by another user (<code>@_artifact.Lock.HolderUserId.ToString("N").Substring(0, 8)</code>)</span>
+                }
+            </p>
+            @if (heldByMe)
+            {
+                <button class="btn-primary" @onclick="ReleaseAsync" disabled="@_busy">
+                    @(_busy ? "Releasing…" : "Release lock")
+                </button>
+            }
+        }
+        @if (_lockError is not null)
+        {
+            <p class="error">@_lockError</p>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Version chain (@_artifact.Versions.Count)</h2>
+        @if (_artifact.Versions.Count == 0)
+        {
+            <p class="muted">No versions published yet.</p>
+        }
+        else
+        {
+            <table class="run-table">
+                <thead><tr><th>v</th><th>Author</th><th>Created</th><th>Reason</th><th>Content</th><th>Preview</th></tr></thead>
+                <tbody>
+                    @foreach (var v in _artifact.Versions.OrderByDescending(x => x.VersionNumber))
+                    {
+                        <tr>
+                            <td>@v.VersionNumber</td>
+                            <td>@v.Author.Kind · <code>@v.Author.Id.ToString("N").Substring(0, 8)</code></td>
+                            <td>@v.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@v.Reason</td>
+                            <td>
+                                <a href="@v.Content.Uri" target="_blank" rel="noopener">@v.Content.ContentType</a>
+                                @if (v.Content.SizeBytes is long b)
+                                {
+                                    <span class="muted"> · @FormatBytes(b)</span>
+                                }
+                            </td>
+                            <td>
+                                @if (v.Preview is not null)
+                                {
+                                    <a href="@v.Preview.Uri" target="_blank" rel="noopener">preview</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Annotations (@_annotations.Count)</h2>
+
+        <EditForm Model="_newAnnotation" OnValidSubmit="AddAnnotationAsync">
+            <div class="form-row">
+                <label>Body</label>
+                <textarea rows="3" @bind="_newAnnotation.Body"></textarea>
+            </div>
+            <div class="form-row">
+                <label>Tags (comma-separated)</label>
+                <input @bind="_newAnnotation.TagsCsv" />
+            </div>
+            <div class="form-row">
+                <label>Kind</label>
+                <select @bind="_newAnnotation.Kind">
+                    <option value="@AnnotationKind.Comment">Comment</option>
+                    <option value="@AnnotationKind.Critique">Critique</option>
+                    <option value="@AnnotationKind.Approval">Approval</option>
+                    <option value="@AnnotationKind.Concern">Concern</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-primary" disabled="@_busy">
+                @(_busy ? "Adding…" : "Add annotation")
+            </button>
+            @if (_annotationError is not null)
+            {
+                <p class="error">@_annotationError</p>
+            }
+        </EditForm>
+
+        @if (_annotations.Count == 0)
+        {
+            <p class="muted">No annotations yet.</p>
+        }
+        else
+        {
+            <ul class="annotation-list">
+                @foreach (var a in _annotations.OrderByDescending(x => x.CreatedAt))
+                {
+                    <li class="annotation">
+                        <p class="muted">
+                            @a.Kind
+                            · @a.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+                            @if (a.UserId is Guid uid)
+                            {
+                                <span> · <code>@uid.ToString("N").Substring(0, 8)</code></span>
+                            }
+                            @if (a.Target is not null)
+                            {
+                                <span> · target=<code>@a.Target.Kind</code></span>
+                            }
+                        </p>
+                        <p>@a.Body</p>
+                        @if (a.Tags.Count > 0)
+                        {
+                            <p class="tags">
+                                @foreach (var t in a.Tags)
+                                {
+                                    <span class="tag">@t</span>
+                                }
+                            </p>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public Guid ArtifactId { get; set; }
+
+    private bool _loaded;
+    private bool _busy;
+    private string? _lockError;
+    private string? _annotationError;
+    private Loom.Domain.Artifacts.Artifact? _artifact;
+    private List<Annotation> _annotations = [];
+    private NewAnnotationModel _newAnnotation = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loaded = false;
+        _artifact = await ArtifactRepo.GetAsync(new Loom.Domain.Artifacts.ArtifactId(ArtifactId));
+        _annotations = _artifact is null
+            ? []
+            : (await Artifacts.ListAnnotationsAsync(_artifact.Id)).ToList();
+        _loaded = true;
+    }
+
+    private async Task AcquireAsync()
+    {
+        if (_artifact is null) return;
+        _busy = true; _lockError = null;
+        try
+        {
+            await Artifacts.AcquireLockAsync(_artifact.Id, CurrentUser.GetUserId(), TimeSpan.FromMinutes(15));
+            await LoadAsync();
+        }
+        catch (Exception ex) { _lockError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ReleaseAsync()
+    {
+        if (_artifact is null) return;
+        _busy = true; _lockError = null;
+        try
+        {
+            await Artifacts.ReleaseLockAsync(_artifact.Id, CurrentUser.GetUserId());
+            await LoadAsync();
+        }
+        catch (Exception ex) { _lockError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task AddAnnotationAsync()
+    {
+        if (_artifact is null || string.IsNullOrWhiteSpace(_newAnnotation.Body))
+        {
+            _annotationError = "Annotation body is required.";
+            return;
+        }
+        _busy = true; _annotationError = null;
+        try
+        {
+            var tags = (_newAnnotation.TagsCsv ?? string.Empty)
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            await Artifacts.AddAnnotationAsync(
+                _artifact.Id,
+                CurrentUser.GetUserId(),
+                _newAnnotation.Kind,
+                target: null,
+                _newAnnotation.Body!,
+                tags);
+            _newAnnotation = new();
+            await LoadAsync();
+        }
+        catch (Exception ex) { _annotationError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private static string FormatBytes(long bytes) =>
+        bytes < 1024 ? $"{bytes} B"
+        : bytes < 1024 * 1024 ? $"{bytes / 1024} KB"
+        : $"{bytes / (1024 * 1024)} MB";
+
+    private sealed class NewAnnotationModel
+    {
+        public string? Body { get; set; }
+        public string? TagsCsv { get; set; }
+        public AnnotationKind Kind { get; set; } = AnnotationKind.Comment;
+    }
+}
