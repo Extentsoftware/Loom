@@ -1,0 +1,144 @@
+@*
+    Kickoff page — the Phase-1 demo entry point. Paste a transcript, hit
+    Begin, and the workflow engine pumps it through:
+       normalize (in-proc) → discovery (Anthropic) → human gate
+    Once the engine pauses at the discovery gate the page redirects to
+    /runs/{runId}/gate where the PO reviews and accepts the discovery.
+
+    A default project is auto-created if the deployment is empty. Single-
+    project deployments (the Phase-1 default) just use the first one.
+*@
+
+@page "/kickoff"
+@attribute [Authorize]
+
+@inject IFeatureService Features
+@inject IProjectRepository Projects
+@inject IWorkflowRepository Workflows
+@inject IWorkflowEngine Engine
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Kickoff · Loom</PageTitle>
+
+<header class="page-head">
+    <p class="page-meta"><a href="/">← Operating Picture</a></p>
+    <h1 class="page-title">Kickoff a <em>feature</em></h1>
+    <p class="page-meta">Paste a discovery transcript. Loom will extract a Discovery Object for your review.</p>
+</header>
+
+<section class="ws-section">
+    <EditForm Model="_form" OnValidSubmit="StartAsync">
+        <div class="form-row">
+            <label>Project</label>
+            @if (_loadedProjects && _projects.Count > 0)
+            {
+                <select @bind="_form.ProjectId">
+                    @foreach (var p in _projects)
+                    {
+                        <option value="@p.Id">@p.Name</option>
+                    }
+                </select>
+            }
+            else
+            {
+                <p class="muted">A default project will be created on first kickoff.</p>
+            }
+        </div>
+        <div class="form-row">
+            <label>Working title</label>
+            <input @bind="_form.Title" placeholder="A short label for this feature; the agent may suggest a better one" />
+        </div>
+        <div class="form-row">
+            <label>Transcript</label>
+            <textarea rows="20" @bind="_form.Transcript" placeholder="Anna: We need express checkout..." required></textarea>
+        </div>
+        @if (_error is not null)
+        {
+            <p class="error">@_error</p>
+        }
+        <button type="submit" class="btn-primary" disabled="@_busy">
+            @(_busy ? "Starting…" : "Begin kickoff")
+        </button>
+    </EditForm>
+</section>
+
+@code {
+    private bool _loadedProjects;
+    private List<Project> _projects = [];
+    private readonly Form _form = new();
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var projects = await Projects.ListAsync();
+        _projects = projects.OrderBy(p => p.Name).ToList();
+        _form.ProjectId = _projects.FirstOrDefault()?.Id ?? Guid.Empty;
+        _loadedProjects = true;
+    }
+
+    private async Task StartAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            // Default project on first run.
+            var projectId = _form.ProjectId;
+            if (projectId == Guid.Empty)
+            {
+                var def = await Features.CreateProjectAsync(
+                    Slug.From("default"), "Default project", description: null);
+                projectId = def.Id;
+            }
+
+            // Placeholder root node — the discovery acceptance will rename
+            // it from "Untitled" to the agent's title (or the PO's edit).
+            var owner = CurrentUser.GetUserId();
+            var slug = Slug.From($"kickoff-{DateTime.UtcNow:yyyyMMddHHmmss}");
+            var title = string.IsNullOrWhiteSpace(_form.Title) ? "Untitled" : _form.Title;
+            var node = await Features.CreateRootNodeAsync(
+                projectId, slug, NodeType.Feature, title, owner);
+
+            // Resolve the kickoff workflow.
+            var workflow = await Workflows.GetCurrentByKeyAsync(
+                Slug.From(KickoffWorkflowFactory.WorkflowKey));
+            if (workflow is null)
+            {
+                _error = "Kickoff workflow not seeded. Restart the app or check Loom:Bootstrap configuration.";
+                return;
+            }
+
+            // Kick the engine off. It runs normalize + discovery and pauses
+            // at the discovery gate; the returned RunId is the gate run.
+            var pausedAt = await Engine.StartAsync(node.Id, workflow.Id,
+                new Dictionary<string, string> { ["transcript"] = _form.Transcript });
+
+            if (pausedAt is null)
+            {
+                // Workflow ran to completion without pausing — unusual for
+                // kickoff but possible if all gates were Auto.
+                Nav.NavigateTo($"/n/{node.Id.Value:D}");
+                return;
+            }
+
+            Nav.NavigateTo($"/runs/{pausedAt.Value.Value:D}/gate");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class Form
+    {
+        public Guid ProjectId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Transcript { get; set; } = string.Empty;
+    }
+}

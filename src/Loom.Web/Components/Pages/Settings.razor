@@ -1,0 +1,70 @@
+@*
+    Settings & Integrations — Phase-2 slim cut. Lists configured external
+    integrations + their status; the actual configure-a-connection flow
+    lives in the database for now (cards are read-only). Phase-5 expands
+    this to full integration + engine credential management.
+*@
+
+@page "/settings"
+@attribute [Authorize]
+
+@inject IIntegrationConnectionRepository Connections
+
+<PageTitle>Settings · Loom</PageTitle>
+
+<header class="page-head">
+    <p class="page-meta"><a href="/">← Operating Picture</a></p>
+    <h1 class="page-title">Settings &amp; <em>integrations</em></h1>
+    <p class="page-meta">Phase 2: read-only view of registered integrations + the MCP endpoint.</p>
+</header>
+
+<section class="ws-section">
+    <h2>MCP server</h2>
+    <p>Loom's Model Context Protocol server is exposed at <code>/mcp</code> over HTTP/SSE.
+        IDE clients (Claude Code, Cursor) target this URL to call the
+        Phase-2 read tools: <code>loom_get_node_context</code>,
+        <code>loom_search_nodes</code>, <code>loom_list_rules</code>.
+    </p>
+</section>
+
+<section class="ws-section">
+    <h2>Integrations (@_connections.Count)</h2>
+    @if (!_loaded)
+    {
+        <p class="loading">Loading…</p>
+    }
+    else if (_connections.Count == 0)
+    {
+        <p class="muted">No integrations configured yet.</p>
+    }
+    else
+    {
+        <table class="run-table">
+            <thead><tr><th>Kind</th><th>Display name</th><th>Tenant / account</th><th>Status</th><th>Last health</th></tr></thead>
+            <tbody>
+                @foreach (var c in _connections)
+                {
+                    <tr>
+                        <td>@c.Kind</td>
+                        <td>@c.DisplayName</td>
+                        <td><code>@c.TenantOrAccount</code></td>
+                        <td><span class="badge">@c.Status</span></td>
+                        <td>@(c.LastHealthCheckAt is { } at ? at.ToString("yyyy-MM-dd HH:mm") : "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private bool _loaded;
+    private List<Loom.Domain.Integrations.IntegrationConnection> _connections = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var all = await Connections.ListAsync();
+        _connections = all.ToList();
+        _loaded = true;
+    }
+}

@@ -1,24 +1,18 @@
 @*
-    Operating Picture — the tree home. Queries the configured project's
-    root nodes and, for each, lists immediate children. Real data flows
-    via IFeatureNodeRepository; no mocks, no placeholder copy.
-
-    What this page deliberately does NOT do (yet):
-      - render the full descendant tree (only one level)
-      - show live agent runs (needs SignalR + RunService)
-      - filter by phase / owner / recency (needs query primitives)
-      - link nodes to a workspace page (workspace doesn't exist yet)
-
-    Each of those lands in a follow-up slice. The point of this slice is
-    to prove the wiring end-to-end: page → repository → DbContext → MSSQL
-    → rendered HTML, with auth in front.
+    Operating Picture — the tree home. Recursive descent through the
+    project's nodes, with derived StatusSignals on each row. Subscribes to
+    NodeHub and re-fetches the tree when a node update arrives. Multiple
+    projects: lists each project; v1 deployments typically host one.
 *@
 
 @page "/"
 @attribute [Authorize]
+@implements IAsyncDisposable
+@rendermode InteractiveServer
 
+@inject IFeatureService Features
 @inject IProjectRepository Projects
-@inject IFeatureNodeRepository Nodes
+@inject NavigationManager Nav
 
 <PageTitle>Operating picture · Loom</PageTitle>
 
@@ -28,7 +22,7 @@
         @if (_loaded)
         {
             <span>@_totalNodes nodes</span>
-            <span>@_initiatives.Count initiatives</span>
+            <span>@_trees.Count project@(_trees.Count == 1 ? "" : "s")</span>
             <span>updated @DateTime.UtcNow.ToString("HH:mm")</span>
         }
         else
@@ -36,64 +30,47 @@
             <span>loading…</span>
         }
     </p>
+    <nav class="page-actions">
+        <a href="/kickoff" class="btn-primary">+ Kickoff a new feature</a>
+        <a href="/fragments" class="btn-secondary">Fragments</a>
+    </nav>
 </header>
 
 @if (!_loaded)
 {
-    <p class="loading">Loading project…</p>
+    <p class="loading">Loading…</p>
 }
-else if (_currentProject is null)
+else if (_trees.Count == 0)
 {
     <section class="empty-state">
         <h2>No project yet.</h2>
         <p>
-            Loom needs at least one project to work against. Run the seed
-            tool or create a project via the database to get started.
-            Project creation through the UI arrives in a follow-up slice.
+            Loom needs a project to work against. Run the seed tool, or
+            kick off a feature — the kickoff page will create a default
+            project on first use.
         </p>
         <pre class="code-hint">dotnet run --project tools/seed</pre>
     </section>
 }
-else if (_initiatives.Count == 0)
-{
-    <section class="empty-state">
-        <h2>No nodes in <em>@_currentProject.Name</em> yet.</h2>
-        <p>
-            Once the kickoff workflow is wired up, dropping a Teams
-            transcript here will create the first feature tree. Until
-            then, seed nodes can be created via the seeding tool.
-        </p>
-    </section>
-}
 else
 {
-    @foreach (var (root, children) in _initiatives)
+    @foreach (var tree in _trees)
     {
         <article class="tree-init">
             <header class="init-head">
-                <span class="init-type">@root.Type.ToString().ToUpperInvariant()</span>
-                <span class="init-title">@root.Title</span>
-                <span class="init-meta">@root.Phase</span>
+                <span class="init-title">@tree.ProjectName</span>
+                <span class="init-meta">@CountNodes(tree.Roots) nodes</span>
             </header>
-            @if (!string.IsNullOrWhiteSpace(root.Intent))
+            @if (tree.Roots.Count == 0)
             {
-                <p class="init-intent">@root.Intent</p>
-            }
-
-            @if (children.Count == 0)
-            {
-                <p class="init-empty">No children yet.</p>
+                <p class="init-empty">No nodes yet.</p>
             }
             else
             {
                 <div class="tree">
-                    @foreach (var child in children)
+                    @foreach (var row in tree.Roots)
                     {
-                        <div class="tree-row">
-                            <span class="tree-icon">@TypeAbbrev(child.Type)</span>
-                            <span class="tree-title">@child.Title</span>
-                            <span class="tree-status @PhaseClass(child.Phase)">@child.Phase</span>
-                        </div>
+                        <NodeRow Row="row" Depth="0" />
                     }
                 </div>
             }
@@ -103,51 +80,74 @@ else
 
 @code {
     private bool _loaded;
-    private Project? _currentProject;
-    private List<(FeatureNode root, IReadOnlyList<FeatureNode> children)> _initiatives = [];
+    private List<NodeTreeView> _trees = [];
     private int _totalNodes;
+    private HubConnection? _hub;
 
     protected override async Task OnInitializedAsync()
     {
-        // v1: a Loom deployment hosts a single primary project. Multi-project
-        // navigation arrives once the methodology owner needs it; for now,
-        // the first-by-name project is the target.
-        var allProjects = await Projects.ListAsync();
-        _currentProject = allProjects.FirstOrDefault();
-
-        if (_currentProject is not null)
-        {
-            var roots = await Nodes.GetRootsAsync(_currentProject.Id);
-            var loaded = new List<(FeatureNode, IReadOnlyList<FeatureNode>)>(roots.Count);
-            foreach (var root in roots)
-            {
-                var children = await Nodes.GetChildrenAsync(root.Id);
-                loaded.Add((root, children));
-                _totalNodes += 1 + children.Count;
-            }
-            _initiatives = loaded;
-        }
-
-        _loaded = true;
+        await LoadAsync();
     }
 
-    private static string TypeAbbrev(NodeType t) => t switch
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        NodeType.Initiative => "INIT",
-        NodeType.Feature => "FEAT",
-        NodeType.Capability => "CAP",
-        NodeType.Slice => "SLICE",
-        _ => t.ToString().ToUpperInvariant()
-    };
+        if (firstRender && _hub is null)
+        {
+            // Connect to the NodeHub to refresh the tree on any node update.
+            // We don't join per-node groups here; the home page wants a
+            // global "anything changed" signal. Phase 3 adds per-project
+            // groups to scope the fan-out.
+            _hub = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/node"))
+                .WithAutomaticReconnect()
+                .Build();
+            _hub.On<object>("node-updated", _ => InvokeAsync(LoadAsync));
+            _hub.On<object>("discovery-accepted", _ => InvokeAsync(LoadAsync));
+            _hub.On<object>("node-phase-advanced", _ => InvokeAsync(LoadAsync));
+            try
+            {
+                await _hub.StartAsync();
+            }
+            catch
+            {
+                // SignalR is best-effort here — the page still renders the
+                // last-fetched tree if the hub fails to start.
+            }
+        }
+    }
 
-    private static string PhaseClass(NodePhase p) => p switch
+    public async ValueTask DisposeAsync()
     {
-        NodePhase.Discovery => "phase-discovery",
-        NodePhase.Enrich => "phase-enrich",
-        NodePhase.Build => "phase-build",
-        NodePhase.Test => "phase-test",
-        NodePhase.Done => "phase-done",
-        NodePhase.Archived => "phase-archived",
-        _ => ""
-    };
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var projects = await Projects.ListAsync();
+        var trees = new List<NodeTreeView>(projects.Count);
+        var total = 0;
+        foreach (var project in projects)
+        {
+            var tree = await Features.GetTreeAsync(project.Id);
+            trees.Add(tree);
+            total += CountNodes(tree.Roots);
+        }
+        _trees = trees;
+        _totalNodes = total;
+        _loaded = true;
+        StateHasChanged();
+    }
+
+    private static int CountNodes(IReadOnlyList<NodeTreeRow> rows)
+    {
+        var n = 0;
+        foreach (var row in rows)
+        {
+            n += 1 + CountNodes(row.Children);
+        }
+        return n;
+    }
 }

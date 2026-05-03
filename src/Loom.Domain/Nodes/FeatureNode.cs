@@ -199,6 +199,48 @@ public sealed class FeatureNode
         Touch(now);
     }
 
+    /// <summary>
+    /// Bulk-apply the PO-accepted output of the kickoff discovery step.
+    /// Atomic: all fields move together, all collections are replaced
+    /// wholesale, the version number ticks once. Rejected if the node is
+    /// already terminal because reopening for discovery is a deliberate
+    /// state transition that should go through Reopen first.
+    /// </summary>
+    public void ApplyDiscovery(DiscoveryAcceptance acceptance, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(acceptance);
+        if (Phase is NodePhase.Done or NodePhase.Archived)
+        {
+            throw new DomainException($"Cannot apply discovery to a {Phase} node; reopen first.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(acceptance.Title))
+        {
+            Title = acceptance.Title.Trim();
+        }
+        Intent = string.IsNullOrWhiteSpace(acceptance.Intent) ? null : acceptance.Intent.Trim();
+
+        _outcomes.Clear();
+        _outcomes.AddRange(acceptance.Outcomes);
+
+        _hypotheses.Clear();
+        _hypotheses.AddRange(acceptance.Hypotheses);
+
+        _openQuestions.Clear();
+        foreach (var q in acceptance.OpenQuestions)
+        {
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                _openQuestions.Add(q.Trim());
+            }
+        }
+
+        _stakeholders.Clear();
+        _stakeholders.AddRange(acceptance.Stakeholders);
+
+        Touch(now);
+    }
+
     private void Touch(DateTimeOffset now)
     {
         UpdatedAt = now;

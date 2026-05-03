@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Loom.Mcp.Tests</RootNamespace>
+    <AssemblyName>Loom.Mcp.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Loom.Domain\Loom.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Loom.Application\Loom.Application.csproj" />
+    <ProjectReference Include="..\..\src\Loom.Mcp\Loom.Mcp.csproj" />
+    <!--
+      Cross-test-project reference: the FakeRepositories fixtures live in
+      Loom.Application.Tests. Shared fakes don't justify a separate
+      test-support library yet; revisit if a third test project needs them.
+    -->
+    <ProjectReference Include="..\Loom.Application.Tests\Loom.Application.Tests.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+</Project>

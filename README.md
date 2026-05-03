@@ -74,6 +74,19 @@ dotnet ef database update --project src/Loom.Infrastructure --startup-project sr
 dotnet run --project tools/seed
 ```
 
+**Configure the Anthropic API key**
+
+The Phase-1 kickoff workflow calls Anthropic for the discovery and decompose
+agent steps. Set the API key in user-secrets (recommended for dev) or in
+configuration:
+
+```bash
+dotnet user-secrets set "Anthropic:ApiKey" "sk-ant-..." --project src/Loom.Web
+```
+
+The default model is `claude-opus-4-7`; override with `Anthropic:DefaultModel`
+in user-secrets or `appsettings.json`.
+
 **Run the web app**
 
 ```bash
@@ -82,9 +95,25 @@ dotnet run --project src/Loom.Web
 
 By default this listens on `https://localhost:5001`. In Development the
 Entra ID auth flow is bypassed (`AzureAd:Enabled = false` in
-`appsettings.Development.json`); for any other environment, fill in the
-`AzureAd` section in configuration with a real tenant id, client id, and
-domain before running.
+`appsettings.Development.json`); a synthetic dev user is signed in
+automatically. For any other environment, fill in the `AzureAd` section
+with a real tenant id, client id, and domain before running.
+
+**The Phase-1 demo path**
+
+1. Visit `/` — the Operating Picture. On a fresh database the empty-state
+   screen offers a kickoff link; the kickoff page auto-creates a default
+   project on first use.
+2. Click **+ Kickoff a new feature**. Paste a Teams-style transcript
+   (lines like `Anna: We need express checkout.`) and submit.
+3. Loom runs the workflow: `normalize` (in-proc) → `discovery` (Anthropic)
+   → pause at the PO gate. The page redirects to `/runs/{id}/gate`.
+4. Review the discovery, edit if needed, click **Accept and continue to
+   decompose**. The engine runs the decompose step and pauses at the
+   second gate.
+5. Review the proposed children, accept the ones you want, click
+   **Accept selected & finish kickoff**. The page redirects to the new
+   feature's workspace at `/n/{node-id}` showing the populated tree.
 
 ## Working with AI tools in this repo
 

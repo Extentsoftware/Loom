@@ -32,10 +32,14 @@ internal sealed class FragmentConfiguration : IEntityTypeConfiguration<Fragment>
         b.HasIndex(f => new { f.Key, f.Scope, f.ScopeId }).IsUnique();
         b.HasIndex(f => f.Category);
 
+        b.Ignore(f => f.Tags);
+        b.Ignore(f => f.Versions);
+        b.Ignore(f => f.CurrentVersion);
+
         b.PrimitiveCollection<List<string>>("_tags")
             .HasColumnName("tags")
-            .ElementType(c => c.HasMaxLength(50));
-        b.Navigation("_tags").UsePropertyAccessMode(PropertyAccessMode.Field);
+            .ElementType(c => c.HasMaxLength(50))
+            .Metadata.SetPropertyAccessMode(PropertyAccessMode.Field);
 
         b.HasMany<FragmentVersion>("_versions")
             .WithOne()

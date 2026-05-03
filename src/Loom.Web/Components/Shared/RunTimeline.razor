@@ -1,0 +1,60 @@
+@*
+    Live timeline of RunEvents for a single run. Used by the PO Gate page
+    to show what the engine has done so far. Polls the repository on a
+    short interval; SignalR push could replace this in Phase 3 but for the
+    Phase-1 demo a simple poll is honest about its limitations.
+*@
+
+@implements IDisposable
+
+@inject IRunEventRepository RunEvents
+
+<section class="ws-section">
+    <h2>Run timeline</h2>
+    @if (_events.Count == 0)
+    {
+        <p class="muted">No events yet.</p>
+    }
+    else
+    {
+        <ol class="timeline">
+            @foreach (var e in _events)
+            {
+                <li class="timeline-item">
+                    <span class="muted">#@e.Sequence · @e.At.ToString("HH:mm:ss")</span>
+                    <strong>@e.Kind</strong>
+                    @if (!string.IsNullOrWhiteSpace(e.PayloadJson) && e.Kind != RunEventKind.StepOutput)
+                    {
+                        <code class="timeline-payload">@e.PayloadJson</code>
+                    }
+                </li>
+            }
+        </ol>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public RunId RunId { get; set; }
+
+    private List<RunEvent> _events = [];
+    private System.Threading.Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+        _timer = new System.Threading.Timer(
+            _ => InvokeAsync(ReloadAsync),
+            state: null,
+            dueTime: TimeSpan.FromSeconds(2),
+            period: TimeSpan.FromSeconds(2));
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    private async Task ReloadAsync()
+    {
+        var fresh = await RunEvents.GetByRunAsync(RunId);
+        _events = fresh.OrderBy(e => e.Sequence).ToList();
+        StateHasChanged();
+    }
+}

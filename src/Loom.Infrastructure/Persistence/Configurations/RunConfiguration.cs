@@ -23,6 +23,7 @@ internal sealed class RunConfiguration : IEntityTypeConfiguration<Run>
         b.Property(r => r.CreatedAt).IsRequired();
         b.Property(r => r.StartedAt);
         b.Property(r => r.CompletedAt);
+        b.Property(r => r.AssembledPromptId).HasConversion(ValueConverters.NullableAssembledPromptId);
 
         b.OwnsOne(r => r.Budgets, x =>
         {
@@ -40,6 +41,8 @@ internal sealed class RunConfiguration : IEntityTypeConfiguration<Run>
             x.Property(p => p.OutputTokens).HasColumnName("cost_output_tokens");
             x.Property(p => p.UsdAmount).HasColumnName("cost_usd_amount").HasPrecision(10, 4);
         });
+
+        b.Ignore(r => r.Fragments);
 
         b.OwnsMany<FragmentRef>("_fragments", o =>
         {

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Loom.Agents.Anthropic</RootNamespace>
+    <AssemblyName>Loom.Agents.Anthropic</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Loom.Application\Loom.Application.csproj" />
+    <ProjectReference Include="..\Loom.Domain\Loom.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Anthropic.SDK is the documented Phase-1 choice in the plan, but Phase 1
+      only exercises a single text-streaming endpoint. We hit /v1/messages
+      directly via HttpClient + System.Text.Json — fewer transitive deps,
+      no SDK version-drift to manage. The IAnthropicChatClient seam keeps
+      a future SDK swap a one-class change.
+    -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+
+</Project>

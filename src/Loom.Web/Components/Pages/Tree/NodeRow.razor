@@ -1,0 +1,33 @@
+@*
+    Recursive tree row. Renders the node's status, type, title, and phase,
+    then recurses into children. The row links into the Feature Workspace
+    page so the tree doubles as navigation.
+*@
+
+<div class="tree-row tree-depth-@Depth">
+    <StatusPulseBadge Signals="Row.Status" />
+    <span class="tree-type">@TypeAbbrev(Row.Type)</span>
+    <a class="tree-title" href="@($"/n/{Row.NodeId.Value:D}")">@Row.Title</a>
+    <PhasePill Phase="Row.Phase" />
+</div>
+@if (Row.Children.Count > 0)
+{
+    @foreach (var child in Row.Children)
+    {
+        <NodeRow Row="child" Depth="@(Depth + 1)" />
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public NodeTreeRow Row { get; set; } = default!;
+    [Parameter] public int Depth { get; set; }
+
+    private static string TypeAbbrev(NodeType t) => t switch
+    {
+        NodeType.Initiative => "INIT",
+        NodeType.Feature => "FEAT",
+        NodeType.Capability => "CAP",
+        NodeType.Slice => "SLC",
+        _ => t.ToString().ToUpperInvariant()
+    };
+}

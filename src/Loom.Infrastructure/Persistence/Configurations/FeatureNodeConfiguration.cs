@@ -44,6 +44,16 @@ internal sealed class FeatureNodeConfiguration : IEntityTypeConfiguration<Featur
         b.HasIndex(n => n.ParentId);
         b.HasIndex(n => n.ProjectId);
 
+        // The public read-only adapters (Outcomes, Hypotheses, Constraints,
+        // Stakeholders, OpenQuestions) wrap private backing fields — EF is
+        // told to ignore them so the OwnsMany / PrimitiveCollection bindings
+        // below take effect against the fields directly.
+        b.Ignore(n => n.Outcomes);
+        b.Ignore(n => n.Hypotheses);
+        b.Ignore(n => n.Constraints);
+        b.Ignore(n => n.Stakeholders);
+        b.Ignore(n => n.OpenQuestions);
+
         // Owned collections — outcomes, hypotheses, constraints, open questions, stakeholders.
         // Stored as side tables, not JSON, so they remain queryable and reportable.
         b.OwnsMany<Outcome>("_outcomes", o =>
@@ -92,7 +102,7 @@ internal sealed class FeatureNodeConfiguration : IEntityTypeConfiguration<Featur
 
         b.PrimitiveCollection<List<string>>("_openQuestions")
             .HasColumnName("open_questions")
-            .ElementType(c => c.HasMaxLength(500));
-        b.Navigation("_openQuestions").UsePropertyAccessMode(PropertyAccessMode.Field);
+            .ElementType(c => c.HasMaxLength(500))
+            .Metadata.SetPropertyAccessMode(PropertyAccessMode.Field);
     }
 }

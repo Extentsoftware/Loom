@@ -1,0 +1,23 @@
+@*
+    Small pill renderer for a NodePhase. Pure presentation — colour is set
+    via CSS classes; the page-level stylesheet picks them up.
+*@
+
+<span class="phase-pill @PhaseClass">@PhaseLabel</span>
+
+@code {
+    [Parameter, EditorRequired] public NodePhase Phase { get; set; }
+
+    private string PhaseClass => Phase switch
+    {
+        NodePhase.Discovery => "phase-discovery",
+        NodePhase.Enrich => "phase-enrich",
+        NodePhase.Build => "phase-build",
+        NodePhase.Test => "phase-test",
+        NodePhase.Done => "phase-done",
+        NodePhase.Archived => "phase-archived",
+        _ => "phase-unknown"
+    };
+
+    private string PhaseLabel => Phase.ToString().ToUpperInvariant();
+}

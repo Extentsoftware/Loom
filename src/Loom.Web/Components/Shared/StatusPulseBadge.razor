@@ -1,0 +1,34 @@
+@*
+    Single-character indicator of a node's StatusSignals.Pulse.
+    Hovered title text expands the breakdown; the colour comes from CSS.
+*@
+
+<span class="status-pulse @PulseClass" title="@Tooltip">@Glyph</span>
+
+@code {
+    [Parameter, EditorRequired] public StatusSignals Signals { get; set; } = default!;
+
+    private string PulseClass => Signals.Pulse switch
+    {
+        StatusPulse.Idle => "pulse-idle",
+        StatusPulse.Active => "pulse-active",
+        StatusPulse.Awaiting => "pulse-awaiting",
+        StatusPulse.Attention => "pulse-attention",
+        StatusPulse.Done => "pulse-done",
+        _ => "pulse-unknown"
+    };
+
+    private string Glyph => Signals.Pulse switch
+    {
+        StatusPulse.Idle => "○",
+        StatusPulse.Active => "●",
+        StatusPulse.Awaiting => "◐",
+        StatusPulse.Attention => "▲",
+        StatusPulse.Done => "✓",
+        _ => "?"
+    };
+
+    private string Tooltip =>
+        $"{Signals.Pulse} · {Signals.RunningRuns} running · " +
+        $"{Signals.FailedRuns} failed · {Signals.OpenChildren} open children";
+}

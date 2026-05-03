@@ -1,0 +1,235 @@
+@*
+    Feature Workspace — single-node detail view. Shows intent, outcomes,
+    hypotheses, open questions, stakeholders, children, recent runs, and
+    a phase-advance button. Subscribes to NodeHub for live updates so a
+    completing run or accepted discovery refreshes the page in place.
+*@
+
+@page "/n/{NodeId:guid}"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+@inject IFeatureService Features
+@inject NavigationManager Nav
+
+<PageTitle>@(_view?.Title ?? "Loading…") · Loom</PageTitle>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_view is null)
+{
+    <section class="empty-state">
+        <h2>Node not found.</h2>
+        <p><a href="/">Back to Operating Picture</a></p>
+    </section>
+}
+else
+{
+    <header class="page-head">
+        <p class="page-meta">
+            <a href="/">← Operating Picture</a>
+        </p>
+        <h1 class="page-title">@_view.Title</h1>
+        <p class="page-meta">
+            <PhasePill Phase="_view.Phase" />
+            <span class="tree-type">@_view.Type.ToString().ToUpperInvariant()</span>
+            <StatusPulseBadge Signals="_view.Status" />
+            @if (_nextPhase is not null)
+            {
+                <button class="btn-secondary" @onclick="AdvanceAsync">Advance to @_nextPhase</button>
+            }
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <h2>Intent</h2>
+        @if (string.IsNullOrWhiteSpace(_view.Intent))
+        {
+            <p class="muted">No intent set.</p>
+        }
+        else
+        {
+            <p>@_view.Intent</p>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Outcomes (@_view.Outcomes.Count)</h2>
+        @if (_view.Outcomes.Count == 0)
+        {
+            <p class="muted">None yet.</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var o in _view.Outcomes)
+                {
+                    <li>
+                        @o.Statement
+                        @if (o.Measurable) { <span class="badge">measurable</span> }
+                        @if (!string.IsNullOrWhiteSpace(o.MetricHint)) { <span class="muted"> — @o.MetricHint</span> }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Hypotheses (@_view.Hypotheses.Count)</h2>
+        @if (_view.Hypotheses.Count == 0)
+        {
+            <p class="muted">None yet.</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var h in _view.Hypotheses)
+                {
+                    <li><strong>If</strong> @h.If <strong>then</strong> @h.Then <em>because</em> @h.Because</li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Open questions (@_view.OpenQuestions.Count)</h2>
+        @if (_view.OpenQuestions.Count == 0)
+        {
+            <p class="muted">None.</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var q in _view.OpenQuestions)
+                {
+                    <li>@q</li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Children (@_view.Children.Count)</h2>
+        @if (_view.Children.Count == 0)
+        {
+            <p class="muted">No children.</p>
+        }
+        else
+        {
+            <div class="tree">
+                @foreach (var c in _view.Children)
+                {
+                    <NodeRow Row="c" Depth="0" />
+                }
+            </div>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Recent runs (@_view.RecentRuns.Count)</h2>
+        @if (_view.RecentRuns.Count == 0)
+        {
+            <p class="muted">No runs yet.</p>
+        }
+        else
+        {
+            <table class="run-table">
+                <thead><tr><th>Engine</th><th>State</th><th>Created</th><th>Cost</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var r in _view.RecentRuns)
+                    {
+                        <tr>
+                            <td>@r.Engine</td>
+                            <td>@r.State</td>
+                            <td>@r.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@(r.CostUsd is decimal d ? $"${d:F4}" : "—")</td>
+                            <td>
+                                <a href="@($"/runs/{r.RunId.Value:D}")">detail</a>
+                                @if (r.State == Loom.Domain.Runs.RunState.PausedForHuman)
+                                {
+                                    <span> · </span>
+                                    <a href="@($"/runs/{r.RunId.Value:D}/gate")">gate</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public Guid NodeId { get; set; }
+
+    private bool _loaded;
+    private FeatureWorkspaceView? _view;
+    private NodePhase? _nextPhase;
+    private HubConnection? _hub;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _hub is null)
+        {
+            _hub = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/node"))
+                .WithAutomaticReconnect()
+                .Build();
+            _hub.On<object>("node-updated", _ => InvokeAsync(LoadAsync));
+            _hub.On<object>("discovery-accepted", _ => InvokeAsync(LoadAsync));
+            _hub.On<object>("node-phase-advanced", _ => InvokeAsync(LoadAsync));
+            _hub.On<object>("run-state-changed", _ => InvokeAsync(LoadAsync));
+            try
+            {
+                await _hub.StartAsync();
+                await _hub.SendAsync("JoinNode", NodeId);
+            }
+            catch
+            {
+                // Best-effort live updates.
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            try { await _hub.SendAsync("LeaveNode", NodeId); } catch { /* ignore */ }
+            await _hub.DisposeAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var typedId = new Loom.Domain.Nodes.NodeId(NodeId);
+        _view = await Features.GetWorkspaceAsync(typedId);
+        _nextPhase = NextPhase(_view?.Phase);
+        _loaded = true;
+        StateHasChanged();
+    }
+
+    private async Task AdvanceAsync()
+    {
+        if (_view is null || _nextPhase is null) return;
+        await Features.AdvancePhaseAsync(_view.NodeId, _nextPhase.Value);
+        await LoadAsync();
+    }
+
+    private static NodePhase? NextPhase(NodePhase? from) => from switch
+    {
+        NodePhase.Discovery => NodePhase.Enrich,
+        NodePhase.Enrich => NodePhase.Build,
+        NodePhase.Build => NodePhase.Test,
+        NodePhase.Test => NodePhase.Done,
+        _ => null
+    };
+}

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Loom.Integrations.Tests</RootNamespace>
+    <AssemblyName>Loom.Integrations.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Loom.Domain\Loom.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Loom.Application\Loom.Application.csproj" />
+    <ProjectReference Include="..\..\src\Loom.Integrations\Loom.Integrations.csproj" />
+    <ProjectReference Include="..\Loom.Application.Tests\Loom.Application.Tests.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+</Project>

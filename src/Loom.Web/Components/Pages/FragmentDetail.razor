@@ -1,0 +1,156 @@
+@*
+    Fragment detail. Shows current version + version history, plus a form to
+    publish a new version. Editing the existing version is intentionally not
+    possible — fragments are immutable per version (provenance), so changes
+    bump a new version.
+*@
+
+@page "/fragments/{FragmentId:guid}"
+@attribute [Authorize]
+
+@inject IFragmentService FragmentSvc
+@inject IFragmentRepository Fragments
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>@(_fragment?.Title ?? "Fragment") · Loom</PageTitle>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_fragment is null)
+{
+    <section class="empty-state">
+        <h2>Fragment not found.</h2>
+        <p><a href="/fragments">Back to library</a></p>
+    </section>
+}
+else
+{
+    <header class="page-head">
+        <p class="page-meta"><a href="/fragments">← Library</a></p>
+        <h1 class="page-title">@_fragment.Title</h1>
+        <p class="page-meta">
+            <span class="muted">@_fragment.Key.Value</span>
+            <span class="badge">@_fragment.Category</span>
+            <span class="badge">@_fragment.Scope</span>
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <h2>Current version</h2>
+        @if (_fragment.CurrentVersion is null)
+        {
+            <p class="muted">No version published yet.</p>
+        }
+        else
+        {
+            <p class="muted">v@_fragment.CurrentVersion.Version · @_fragment.CurrentVersion.CreatedAt.ToString("yyyy-MM-dd HH:mm")</p>
+            <pre class="fragment-content">@_fragment.CurrentVersion.Content</pre>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Versions (@_fragment.Versions.Count)</h2>
+        @if (_fragment.Versions.Count == 0)
+        {
+            <p class="muted">None.</p>
+        }
+        else
+        {
+            <table class="run-table">
+                <thead><tr><th>v</th><th>Created</th><th>Change note</th><th>Status</th></tr></thead>
+                <tbody>
+                    @foreach (var v in _fragment.Versions.OrderByDescending(x => x.Version))
+                    {
+                        <tr>
+                            <td>@v.Version</td>
+                            <td>@v.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@(v.ChangeNote ?? "—")</td>
+                            <td>
+                                @if (v.Id == _fragment.CurrentVersionId) { <span class="badge">current</span> }
+                                @if (v.IsDeprecated) { <span class="badge attention">deprecated</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Publish new version</h2>
+        <EditForm Model="_publish" OnValidSubmit="PublishAsync">
+            <div class="form-row">
+                <label>Change note</label>
+                <input @bind="_publish.ChangeNote" placeholder="What changed and why?" />
+            </div>
+            <div class="form-row">
+                <label>Content</label>
+                <textarea rows="14" @bind="_publish.Content" required></textarea>
+            </div>
+            @if (_publishError is not null)
+            {
+                <p class="error">@_publishError</p>
+            }
+            <button type="submit" class="btn-primary" disabled="@_publishing">
+                @(_publishing ? "Publishing…" : "Publish new version")
+            </button>
+        </EditForm>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid FragmentId { get; set; }
+
+    private bool _loaded;
+    private Fragment? _fragment;
+    private readonly PublishForm _publish = new();
+    private bool _publishing;
+    private string? _publishError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var typed = new Loom.Domain.Fragments.FragmentId(FragmentId);
+        _fragment = await Fragments.GetAsync(typed);
+        _publish.Content = _fragment?.CurrentVersion?.Content ?? string.Empty;
+        _loaded = true;
+    }
+
+    private async Task PublishAsync()
+    {
+        if (_fragment is null) return;
+        _publishing = true;
+        _publishError = null;
+        try
+        {
+            await FragmentSvc.PublishVersionAsync(
+                _fragment.Id,
+                _publish.Content,
+                hints: SeedFragments.DefaultHints,
+                changeNote: _publish.ChangeNote,
+                authorId: CurrentUser.GetUserId());
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _publishError = ex.Message;
+        }
+        finally
+        {
+            _publishing = false;
+        }
+    }
+
+    private sealed class PublishForm
+    {
+        public string Content { get; set; } = string.Empty;
+        public string? ChangeNote { get; set; }
+    }
+}

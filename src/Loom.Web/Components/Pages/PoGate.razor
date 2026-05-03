@@ -1,0 +1,438 @@
+@*
+    PO Gate. Loads a paused run, figures out which step is gated (discovery
+    or decompose), renders the appropriate review UI, and on accept:
+
+      • Discovery: applies the (PO-edited) DiscoveryObject onto the run's
+        target node, then resolves the gate so the engine continues to
+        decompose.
+
+      • Decompose: creates each accepted ProposedChild as a real
+        FeatureNode under the target, then resolves the gate.
+
+    After resolve, the engine either pauses at the next gate (redirect there)
+    or completes the workflow (redirect to the target node's workspace).
+*@
+
+@page "/runs/{RunId:guid}/gate"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+@inject IRunRepository Runs
+@inject IRunEventRepository RunEvents
+@inject IWorkflowRepository Workflows
+@inject IFeatureService Features
+@inject IWorkflowEngine Engine
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>PO Gate · Loom</PageTitle>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_run is null || _step is null)
+{
+    <section class="empty-state">
+        <h2>Run not found.</h2>
+        <p><a href="/">Back to Operating Picture</a></p>
+    </section>
+}
+else if (_run.State != RunState.PausedForHuman)
+{
+    <section class="empty-state">
+        <h2>Run is not paused at a gate.</h2>
+        <p>Current state: <strong>@_run.State</strong></p>
+        @if (_targetNodeId is not null)
+        {
+            <p><a href="@($"/n/{_targetNodeId.Value.Value:D}")">Open target node →</a></p>
+        }
+    </section>
+}
+else if (_step.Key == KickoffWorkflowFactory.DiscoveryStepKey && _discovery is not null)
+{
+    <header class="page-head">
+        <p class="page-meta">
+            <a href="@($"/n/{_targetNodeId!.Value.Value:D}")">← Target node</a>
+        </p>
+        <h1 class="page-title">Discovery <em>review</em></h1>
+        <p class="page-meta">
+            Step: <strong>@_step.Key</strong> · Gating: <strong>@_step.Gating</strong>
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <EditForm Model="_discoveryEdit" OnValidSubmit="AcceptDiscoveryAsync">
+            <div class="form-row">
+                <label>Title</label>
+                <input @bind="_discoveryEdit.Title" />
+            </div>
+            <div class="form-row">
+                <label>Intent</label>
+                <textarea rows="3" @bind="_discoveryEdit.Intent"></textarea>
+            </div>
+            <div class="form-row">
+                <label>Outcomes (one per line — optional metric after a pipe)</label>
+                <textarea rows="4" @bind="_discoveryEdit.OutcomesText"></textarea>
+            </div>
+            <div class="form-row">
+                <label>Hypotheses (one per line — If | then | because)</label>
+                <textarea rows="4" @bind="_discoveryEdit.HypothesesText"></textarea>
+            </div>
+            <div class="form-row">
+                <label>Open questions (one per line)</label>
+                <textarea rows="4" @bind="_discoveryEdit.OpenQuestionsText"></textarea>
+            </div>
+            <div class="form-row">
+                <label>Stakeholders (one per line — name | role | interest)</label>
+                <textarea rows="4" @bind="_discoveryEdit.StakeholdersText"></textarea>
+            </div>
+            @if (_error is not null)
+            {
+                <p class="error">@_error</p>
+            }
+            <button type="submit" class="btn-primary" disabled="@_busy">
+                @(_busy ? "Accepting…" : "Accept and continue to decompose")
+            </button>
+        </EditForm>
+    </section>
+
+    <RunTimeline RunId="_run.Id" />
+}
+else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey && _decomposition is not null)
+{
+    <header class="page-head">
+        <p class="page-meta">
+            <a href="@($"/n/{_targetNodeId!.Value.Value:D}")">← Target node</a>
+        </p>
+        <h1 class="page-title">Decomposition <em>review</em></h1>
+        <p class="page-meta">
+            Step: <strong>@_step.Key</strong> · @_decomposition.Children.Count proposed children
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <EditForm Model="_proposalEdits" OnValidSubmit="AcceptDecompositionAsync">
+            <table class="run-table">
+                <thead><tr><th>Accept</th><th>Type</th><th>Slug</th><th>Title</th><th>Intent</th></tr></thead>
+                <tbody>
+                    @for (var i = 0; i < _proposalEdits.Children.Count; i++)
+                    {
+                        var idx = i;
+                        var c = _proposalEdits.Children[idx];
+                        <tr>
+                            <td><input type="checkbox" @bind="c.Accepted" /></td>
+                            <td>@c.Type</td>
+                            <td><input @bind="c.Slug" /></td>
+                            <td><input @bind="c.Title" /></td>
+                            <td><input @bind="c.Intent" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_error is not null)
+            {
+                <p class="error">@_error</p>
+            }
+            <button type="submit" class="btn-primary" disabled="@_busy">
+                @(_busy ? "Creating…" : "Accept selected & finish kickoff")
+            </button>
+        </EditForm>
+    </section>
+
+    <RunTimeline RunId="_run.Id" />
+}
+else
+{
+    <section class="empty-state">
+        <h2>Unknown gate.</h2>
+        <p>Step <strong>@_step.Key</strong> at gate role <strong>@_step.Gating</strong>.</p>
+        <p>This UI ships handlers for <code>discovery</code> and <code>decompose</code> only in Phase 1.</p>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid RunId { get; set; }
+
+    private bool _loaded;
+    private Loom.Domain.Runs.Run? _run;
+    private Loom.Domain.Nodes.NodeId? _targetNodeId;
+    private Loom.Domain.Workflows.WorkflowStep? _step;
+    private DiscoveryObject? _discovery;
+    private DecompositionProposal? _decomposition;
+    private DiscoveryEditModel _discoveryEdit = new();
+    private DecomposeEditModel _proposalEdits = new();
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    private async Task LoadAsync()
+    {
+        _loaded = false;
+        _run = await Runs.GetAsync(new Loom.Domain.Runs.RunId(RunId));
+        if (_run is null)
+        {
+            _loaded = true;
+            return;
+        }
+        _targetNodeId = _run.NodeId;
+
+        if (_run.WorkflowId is Guid wfId && _run.StepId is Guid stepId)
+        {
+            var workflow = await Workflows.GetAsync(new Loom.Domain.Workflows.WorkflowId(wfId));
+            _step = workflow?.Steps.FirstOrDefault(s => s.Id.Value == stepId);
+        }
+
+        // The agent's output for the gated step is the most recent
+        // StepOutput RunEvent on this run.
+        var events = await RunEvents.GetByRunAsync(_run.Id);
+        var lastOutput = events.LastOrDefault(e => e.Kind == RunEventKind.StepOutput);
+        if (lastOutput?.PayloadJson is { Length: > 0 } payload && _step is not null)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(payload);
+                if (doc.RootElement.TryGetProperty("output", out var outputProp) &&
+                    outputProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var raw = outputProp.GetString() ?? string.Empty;
+                    if (_step.Key == KickoffWorkflowFactory.DiscoveryStepKey)
+                    {
+                        _discovery = TryParse<DiscoveryObject>(raw);
+                        if (_discovery is not null)
+                        {
+                            _discoveryEdit = DiscoveryEditModel.From(_discovery);
+                        }
+                    }
+                    else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey)
+                    {
+                        _decomposition = TryParse<DecompositionProposal>(raw);
+                        if (_decomposition is not null)
+                        {
+                            _proposalEdits = DecomposeEditModel.From(_decomposition);
+                        }
+                    }
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Bad output — _discovery/_decomposition stay null.
+            }
+        }
+
+        _loaded = true;
+    }
+
+    private async Task AcceptDiscoveryAsync()
+    {
+        if (_run is null || _targetNodeId is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var acceptance = _discoveryEdit.ToAcceptance();
+            await Features.ApplyDiscoveryAsync(_targetNodeId.Value, acceptance, CurrentUser.GetUserId());
+
+            // Forward the accepted discovery as input to the decompose step.
+            var serialized = System.Text.Json.JsonSerializer.Serialize(acceptance);
+            await Engine.ResolveGateAsync(
+                _run.Id,
+                KickoffWorkflowFactory.DiscoveryStepKey,
+                CurrentUser.GetUserId(),
+                edits: new Dictionary<string, string>
+                {
+                    [$"{KickoffWorkflowFactory.DiscoveryStepKey}.output"] = serialized
+                });
+
+            await NavigateAfterResolveAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AcceptDecompositionAsync()
+    {
+        if (_run is null || _targetNodeId is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var ownerId = CurrentUser.GetUserId();
+            foreach (var c in _proposalEdits.Children.Where(c => c.Accepted))
+            {
+                if (string.IsNullOrWhiteSpace(c.Slug) || string.IsNullOrWhiteSpace(c.Title))
+                {
+                    continue;
+                }
+                Slug slug;
+                try { slug = Slug.From(c.Slug.Trim()); }
+                catch { _error = $"Invalid slug '{c.Slug}'."; return; }
+                var child = await Features.CreateChildNodeAsync(
+                    _targetNodeId.Value, slug, c.ParseType(), c.Title.Trim(), ownerId);
+                if (!string.IsNullOrWhiteSpace(c.Intent))
+                {
+                    await Features.SetIntentAsync(child.Id, c.Intent);
+                }
+            }
+
+            await Engine.ResolveGateAsync(
+                _run.Id, KickoffWorkflowFactory.DecomposeStepKey, ownerId);
+
+            // Decompose is the last step; redirect to the workspace.
+            Nav.NavigateTo($"/n/{_targetNodeId.Value.Value:D}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task NavigateAfterResolveAsync()
+    {
+        if (_targetNodeId is null) return;
+
+        // Look for a paused run on the same node — that's the next gate.
+        var active = await Runs.GetByNodeAsync(_targetNodeId.Value);
+        var nextGate = active
+            .Where(r => r.State == RunState.PausedForHuman && r.Id != _run!.Id)
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefault();
+
+        if (nextGate is not null)
+        {
+            Nav.NavigateTo($"/runs/{nextGate.Id.Value:D}/gate");
+        }
+        else
+        {
+            Nav.NavigateTo($"/n/{_targetNodeId.Value.Value:D}");
+        }
+    }
+
+    private static T? TryParse<T>(string raw) where T : class
+    {
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<T>(raw);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    private sealed class DiscoveryEditModel
+    {
+        public string? Title { get; set; }
+        public string? Intent { get; set; }
+        public string OutcomesText { get; set; } = string.Empty;
+        public string HypothesesText { get; set; } = string.Empty;
+        public string OpenQuestionsText { get; set; } = string.Empty;
+        public string StakeholdersText { get; set; } = string.Empty;
+
+        public static DiscoveryEditModel From(DiscoveryObject d) => new()
+        {
+            Title = d.Title,
+            Intent = d.Intent,
+            OutcomesText = string.Join("\n",
+                d.Outcomes.Select(o => string.IsNullOrWhiteSpace(o.MetricHint) ? o.Statement : $"{o.Statement} | {o.MetricHint}")),
+            HypothesesText = string.Join("\n",
+                d.Hypotheses.Select(h => $"{h.If} | {h.Then} | {h.Because}")),
+            OpenQuestionsText = string.Join("\n", d.OpenQuestions),
+            StakeholdersText = string.Join("\n",
+                d.Stakeholders.Select(s => string.IsNullOrWhiteSpace(s.Interest) ? $"{s.Name} | {s.Role}" : $"{s.Name} | {s.Role} | {s.Interest}"))
+        };
+
+        public DiscoveryAcceptance ToAcceptance()
+        {
+            var outcomes = SplitLines(OutcomesText)
+                .Select(line =>
+                {
+                    var parts = line.Split('|', 2);
+                    return Outcome.Of(parts[0].Trim(), parts.Length > 1 ? parts[1].Trim() : null, measurable: parts.Length > 1);
+                }).ToList();
+            var hypotheses = SplitLines(HypothesesText)
+                .Select(line =>
+                {
+                    var parts = line.Split('|', 3);
+                    return new Hypothesis(
+                        If: parts.ElementAtOrDefault(0)?.Trim() ?? string.Empty,
+                        Then: parts.ElementAtOrDefault(1)?.Trim() ?? string.Empty,
+                        Because: parts.ElementAtOrDefault(2)?.Trim() ?? string.Empty);
+                }).ToList();
+            var stakeholders = SplitLines(StakeholdersText)
+                .Select(line =>
+                {
+                    var parts = line.Split('|', 3);
+                    return new Stakeholder(
+                        UserId: null,
+                        Name: parts.ElementAtOrDefault(0)?.Trim() ?? string.Empty,
+                        Role: parts.ElementAtOrDefault(1)?.Trim() ?? string.Empty,
+                        Interest: parts.ElementAtOrDefault(2)?.Trim());
+                }).ToList();
+
+            return new DiscoveryAcceptance(
+                Title: Title,
+                Intent: Intent,
+                Outcomes: outcomes,
+                Hypotheses: hypotheses,
+                OpenQuestions: SplitLines(OpenQuestionsText).ToList(),
+                Stakeholders: stakeholders);
+        }
+
+        private static IEnumerable<string> SplitLines(string s) =>
+            (s ?? string.Empty)
+                .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private sealed class DecomposeEditModel
+    {
+        public List<ChildEdit> Children { get; set; } = [];
+
+        public static DecomposeEditModel From(DecompositionProposal p) => new()
+        {
+            Children = [.. p.Children.Select(c => new ChildEdit
+            {
+                Accepted = true,
+                Slug = c.Slug,
+                Title = c.Title,
+                Intent = c.Intent,
+                Type = c.Type
+            })]
+        };
+    }
+
+    private sealed class ChildEdit
+    {
+        public bool Accepted { get; set; }
+        public string Slug { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Intent { get; set; }
+        public string Type { get; set; } = "Capability";
+
+        public NodeType ParseType() => Type?.Trim().ToLowerInvariant() switch
+        {
+            "initiative" => NodeType.Initiative,
+            "feature" => NodeType.Feature,
+            "capability" => NodeType.Capability,
+            "slice" => NodeType.Slice,
+            _ => NodeType.Capability
+        };
+    }
+}

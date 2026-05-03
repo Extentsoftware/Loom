@@ -51,6 +51,7 @@ public sealed class Run
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? StartedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
+    public AssembledPromptId? AssembledPromptId { get; private set; }
 
     public IReadOnlyList<FragmentRef> Fragments => _fragments.AsReadOnly();
 
@@ -69,6 +70,24 @@ public sealed class Run
         var run = new Run(RunId.New(), nodeId, workflowId, stepId, engine, budgets, now);
         run._fragments.AddRange(fragments);
         return run;
+    }
+
+    /// <summary>
+    /// Pin the assembled prompt that was sent to the engine for this run.
+    /// Only legal while the run is still in Queued state — the prompt is part
+    /// of the run's provenance and cannot be re-assigned mid-flight.
+    /// </summary>
+    public void AttachAssembledPrompt(AssembledPromptId promptId)
+    {
+        if (State is not RunState.Queued)
+        {
+            throw new DomainException($"Cannot attach an assembled prompt to a {State} run.");
+        }
+        if (AssembledPromptId.HasValue)
+        {
+            throw new DomainException("This run already has an assembled prompt attached.");
+        }
+        AssembledPromptId = promptId;
     }
 
     public void MarkRunning(string externalRunId, DateTimeOffset now)

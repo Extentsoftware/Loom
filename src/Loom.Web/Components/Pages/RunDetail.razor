@@ -1,0 +1,217 @@
+@*
+    Run Detail / Provenance. Phase-3 load-bearing screen — without it,
+    nobody trusts what an agent emitted. Renders:
+      • Run state, engine, target node, timestamps, cost.
+      • Assembled prompt: system prompt + each message + fragment refs
+        (id @ version) so a reviewer can audit exactly what was sent.
+      • Run timeline: every RunEvent in sequence order.
+      • Replay button: queues a fresh run with the same fragments and
+        annotates this run with a ReplayQueued event.
+*@
+
+@page "/runs/{RunId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject IRunRepository Runs
+@inject IRunEventRepository RunEvents
+@inject IAssembledPromptRepository AssembledPrompts
+@inject IWorkflowRepository Workflows
+@inject IRunService RunService
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>Run · Loom</PageTitle>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else if (_run is null)
+{
+    <section class="empty-state">
+        <h2>Run not found.</h2>
+        <p><a href="/">Back to Operating Picture</a></p>
+    </section>
+}
+else
+{
+    <header class="page-head">
+        <p class="page-meta">
+            <a href="@($"/n/{_run.NodeId.Value:D}")">← Target node</a>
+        </p>
+        <h1 class="page-title">Run <em>@_run.Id.Value.ToString("N").Substring(0, 8)</em></h1>
+        <p class="page-meta">
+            State: <strong>@_run.State</strong>
+            · Engine: <strong>@_run.Engine</strong>
+            @if (_stepKey is not null)
+            {
+                <span> · Step: <strong>@_stepKey</strong></span>
+            }
+            @if (_run.Cost is not null)
+            {
+                <span> · Cost: <strong>$@_run.Cost.UsdAmount.ToString("F4")</strong></span>
+            }
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <h2>Lifecycle</h2>
+        <dl class="kv">
+            <dt>Created</dt><dd>@_run.CreatedAt.ToString("u")</dd>
+            @if (_run.StartedAt is not null)
+            {
+                <dt>Started</dt><dd>@_run.StartedAt.Value.ToString("u")</dd>
+            }
+            @if (_run.CompletedAt is not null)
+            {
+                <dt>Completed</dt><dd>@_run.CompletedAt.Value.ToString("u")</dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(_run.ExternalRunId))
+            {
+                <dt>External run id</dt><dd><code>@_run.ExternalRunId</code></dd>
+            }
+            @if (!string.IsNullOrWhiteSpace(_run.FailureReason))
+            {
+                <dt>Failure</dt><dd class="error">@_run.FailureReason</dd>
+            }
+        </dl>
+
+        @if (_run.State is RunState.Completed or RunState.Failed or RunState.Cancelled)
+        {
+            <button class="btn-primary" @onclick="ReplayAsync" disabled="@_busy">
+                @(_busy ? "Replaying…" : "Replay this run")
+            </button>
+            @if (_replayError is not null)
+            {
+                <p class="error">@_replayError</p>
+            }
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Assembled prompt</h2>
+        @if (_prompt is null)
+        {
+            <p class="muted">No assembled prompt persisted for this run.</p>
+        }
+        else
+        {
+            <p class="muted">Assembled @_prompt.AssembledAt.ToString("u")</p>
+
+            <h3>Fragments used</h3>
+            @if (_prompt.Fragments.Count == 0)
+            {
+                <p class="muted">No fragments.</p>
+            }
+            else
+            {
+                <ul class="fragment-list">
+                    @foreach (var f in _prompt.Fragments)
+                    {
+                        <li>
+                            <code>@f.FragmentId.Value.ToString("N").Substring(0, 8)</code>
+                            <span class="muted"> · v@f.Version</span>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <h3>System prompt</h3>
+            <pre class="prompt-block">@_prompt.SystemPrompt</pre>
+
+            <h3>Messages</h3>
+            @foreach (var m in _prompt.Messages)
+            {
+                <div class="prompt-message">
+                    <p class="muted"><strong>@m.Role</strong></p>
+                    <pre class="prompt-block">@m.Content</pre>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_prompt.OutputSchemaJson))
+            {
+                <h3>Expected output schema</h3>
+                <pre class="prompt-block">@_prompt.OutputSchemaJson</pre>
+            }
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Timeline</h2>
+        @if (_events.Count == 0)
+        {
+            <p class="muted">No events.</p>
+        }
+        else
+        {
+            <ol class="timeline">
+                @foreach (var e in _events)
+                {
+                    <li class="timeline-item">
+                        <span class="muted">#@e.Sequence · @e.At.ToString("HH:mm:ss")</span>
+                        <strong>@e.Kind</strong>
+                        @if (!string.IsNullOrWhiteSpace(e.PayloadJson))
+                        {
+                            <code class="timeline-payload">@e.PayloadJson</code>
+                        }
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public Guid RunId { get; set; }
+
+    private bool _loaded;
+    private bool _busy;
+    private string? _replayError;
+    private Loom.Domain.Runs.Run? _run;
+    private string? _stepKey;
+    private AssembledPrompt? _prompt;
+    private List<RunEvent> _events = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _run = await Runs.GetAsync(new Loom.Domain.Runs.RunId(RunId));
+        if (_run is null)
+        {
+            _loaded = true;
+            return;
+        }
+
+        if (_run.WorkflowId is Guid wfId && _run.StepId is Guid stepId)
+        {
+            var workflow = await Workflows.GetAsync(new Loom.Domain.Workflows.WorkflowId(wfId));
+            _stepKey = workflow?.Steps.FirstOrDefault(s => s.Id.Value == stepId)?.Key;
+        }
+
+        _prompt = await AssembledPrompts.GetByRunAsync(_run.Id);
+        var events = await RunEvents.GetByRunAsync(_run.Id);
+        _events = events.OrderBy(e => e.Sequence).ToList();
+        _loaded = true;
+    }
+
+    private async Task ReplayAsync()
+    {
+        if (_run is null) return;
+        _busy = true;
+        _replayError = null;
+        try
+        {
+            var fresh = await RunService.ReplayAsync(_run.Id, CurrentUser.GetUserId());
+            Nav.NavigateTo($"/runs/{fresh.Id.Value:D}");
+        }
+        catch (Exception ex)
+        {
+            _replayError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

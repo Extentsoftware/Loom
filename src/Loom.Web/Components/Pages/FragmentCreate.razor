@@ -1,0 +1,105 @@
+@*
+    Fragment creation. Pick a category, scope (Phase 1 surfaces Global only —
+    Project/Node scopes need a target picker which arrives in Phase 3), key,
+    title, and initial content. The page redirects to the new fragment's
+    detail page on success.
+*@
+
+@page "/fragments/new"
+@attribute [Authorize]
+
+@inject IFragmentService FragmentSvc
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+
+<PageTitle>New fragment · Loom</PageTitle>
+
+<header class="page-head">
+    <p class="page-meta"><a href="/fragments">← Library</a></p>
+    <h1 class="page-title">New <em>fragment</em></h1>
+</header>
+
+<section class="ws-section">
+    <EditForm Model="_form" OnValidSubmit="CreateAsync">
+        <div class="form-row">
+            <label>Key (slug)</label>
+            <input @bind="_form.Key" placeholder="e.g. po-discovery-assistant" required />
+        </div>
+        <div class="form-row">
+            <label>Title</label>
+            <input @bind="_form.Title" placeholder="Short, human-readable title" required />
+        </div>
+        <div class="form-row">
+            <label>Category</label>
+            <select @bind="_form.Category">
+                @foreach (var c in Enum.GetValues<FragmentCategory>())
+                {
+                    <option value="@c">@c</option>
+                }
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Initial content</label>
+            <textarea rows="14" @bind="_form.Content" required></textarea>
+        </div>
+        <div class="form-row">
+            <label>Change note</label>
+            <input @bind="_form.ChangeNote" placeholder="Why are we adding this?" />
+        </div>
+        @if (_error is not null)
+        {
+            <p class="error">@_error</p>
+        }
+        <button type="submit" class="btn-primary" disabled="@_busy">
+            @(_busy ? "Creating…" : "Create fragment")
+        </button>
+    </EditForm>
+</section>
+
+@code {
+    private readonly Form _form = new();
+    private bool _busy;
+    private string? _error;
+
+    private async Task CreateAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var slug = Slug.From(_form.Key);
+            var owner = CurrentUser.GetUserId();
+            var fragment = await FragmentSvc.CreateAsync(
+                slug,
+                _form.Category,
+                FragmentScope.Global,
+                scopeId: null,
+                title: _form.Title,
+                ownerId: owner);
+            await FragmentSvc.PublishVersionAsync(
+                fragment.Id,
+                _form.Content,
+                hints: SeedFragments.DefaultHints,
+                changeNote: string.IsNullOrWhiteSpace(_form.ChangeNote) ? "Initial version" : _form.ChangeNote,
+                authorId: owner);
+            Nav.NavigateTo($"/fragments/{fragment.Id.Value:D}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class Form
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public FragmentCategory Category { get; set; } = FragmentCategory.Skill;
+        public string Content { get; set; } = string.Empty;
+        public string? ChangeNote { get; set; }
+    }
+}

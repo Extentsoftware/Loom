@@ -1,0 +1,74 @@
+@*
+    Fragment Library — list view, grouped by category. Click into a fragment
+    to view its versions and publish a new one. The methodology owner is the
+    primary user; in v1 every authenticated user has read access.
+*@
+
+@page "/fragments"
+@attribute [Authorize]
+
+@inject IFragmentRepository Fragments
+
+<PageTitle>Fragment library · Loom</PageTitle>
+
+<header class="page-head">
+    <p class="page-meta"><a href="/">← Operating Picture</a></p>
+    <h1 class="page-title">Fragment <em>library</em></h1>
+    <nav class="page-actions">
+        <a href="/fragments/new" class="btn-primary">+ New fragment</a>
+    </nav>
+</header>
+
+@if (!_loaded)
+{
+    <p class="loading">Loading…</p>
+}
+else
+{
+    @foreach (var category in Categories)
+    {
+        var inCategory = _fragments.Where(f => f.Category == category).ToList();
+        <section class="ws-section">
+            <h2>@category (@inCategory.Count)</h2>
+            @if (inCategory.Count == 0)
+            {
+                <p class="muted">None.</p>
+            }
+            else
+            {
+                <ul class="frag-list">
+                    @foreach (var f in inCategory)
+                    {
+                        <li>
+                            <a href="@($"/fragments/{f.Id.Value:D}")">@f.Title</a>
+                            <span class="muted"> — @f.Key.Value (@f.Scope)</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+}
+
+@code {
+    private static readonly FragmentCategory[] Categories =
+    [
+        FragmentCategory.Identity,
+        FragmentCategory.Methodology,
+        FragmentCategory.Project,
+        FragmentCategory.Domain,
+        FragmentCategory.Skill,
+        FragmentCategory.Context,
+        FragmentCategory.Feedback
+    ];
+
+    private bool _loaded;
+    private List<Fragment> _fragments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var globals = await Fragments.ListGlobalAsync();
+        _fragments = globals.OrderBy(f => f.Title).ToList();
+        _loaded = true;
+    }
+}

@@ -37,3 +37,22 @@ public enum EngineName
     ClaudeCodeHeadless = 3,
     InProc = 4
 }
+
+/// <summary>
+/// Kinds of audit events recorded against a Run. The set is append-only
+/// (existing values must keep their numbers); add new kinds at the end.
+/// </summary>
+public enum RunEventKind
+{
+    StepStarted = 1,
+    StepOutput = 2,
+    StepFailed = 3,
+    GatePaused = 4,
+    GateResolved = 5,
+    StepCompleted = 6,
+    TokenUsage = 7,
+    /// <summary>Phase 3+: a notification was emitted for this run.</summary>
+    NotificationSent = 8,
+    /// <summary>Phase 3+: a replay of a prior run was queued from this one.</summary>
+    ReplayQueued = 9
+}
