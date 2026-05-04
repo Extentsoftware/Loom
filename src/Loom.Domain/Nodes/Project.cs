@@ -25,6 +25,7 @@ public sealed class Project
     public string? Description { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+    public bool IsArchived { get; private set; }
 
     public static Project Create(Slug slug, string name, DateTimeOffset now)
     {
@@ -42,6 +43,36 @@ public sealed class Project
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         Name = name.Trim();
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Mark the project archived. Operating Picture filters archived
+    /// projects out by default. Idempotent: calling on an already-archived
+    /// project is a no-op (still bumps UpdatedAt is *not* desirable here —
+    /// archive is a one-shot transition).
+    /// </summary>
+    public void Archive(DateTimeOffset now)
+    {
+        if (IsArchived)
+        {
+            throw new DomainException("Project is already archived.");
+        }
+        IsArchived = true;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
+    /// Reverse the archive. The "Show archived → restore" path on the
+    /// Operating Picture uses this; otherwise unused.
+    /// </summary>
+    public void Unarchive(DateTimeOffset now)
+    {
+        if (!IsArchived)
+        {
+            throw new DomainException("Project is not archived.");
+        }
+        IsArchived = false;
         UpdatedAt = now;
     }
 }

@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\src\Loom.Application\Loom.Application.csproj" />
     <ProjectReference Include="..\..\src\Loom.Infrastructure\Loom.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Loom.Agents.Anthropic\Loom.Agents.Anthropic.csproj" />
+    <ProjectReference Include="..\..\src\Loom.Agents.Foundry\Loom.Agents.Foundry.csproj" />
     <ProjectReference Include="..\..\src\Loom.Agents.InProc\Loom.Agents.InProc.csproj" />
   </ItemGroup>
 

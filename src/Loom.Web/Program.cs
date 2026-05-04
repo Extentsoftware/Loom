@@ -1,4 +1,5 @@
 using Loom.Agents.Anthropic;
+using Loom.Agents.Foundry;
 using Loom.Agents.InProc;
 using Loom.Application.Abstractions;
 using Loom.Domain.Common.DomainEvents;
@@ -67,10 +68,13 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddLoomInfrastructure(connectionString);
 
 // ─── agent runtimes ────────────────────────────────────────────────────
-// Phase 1 ships exactly two: AnthropicAgentRuntime for agent steps, and
-// the in-proc TranscriptNormalizeStep for stage 0. Phase 5 layers Foundry
-// + Claude Code Headless alongside.
+// Two streaming runtimes register side-by-side, plus the in-proc
+// transcript normalizer for stage 0. The DefaultAgentRouter picks one
+// per step based on WorkflowStep.EnginePref. Foundry (Azure OpenAI Chat
+// Completions, ADR-0017) is the default for new workflow templates;
+// Anthropic stays registered so workflows that pin it keep working.
 builder.Services.AddAnthropicAgentRuntime(builder.Configuration);
+builder.Services.AddFoundryAgentRuntime(builder.Configuration);
 builder.Services.AddLoomInProcSteps();
 
 // Phase-3 in-app notification channel: pushes per-user payloads via the

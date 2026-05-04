@@ -54,7 +54,7 @@ public partial class Initial : Migration
                 OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                 CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
                 UpdatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                Version = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                Version = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L),
                 open_questions = table.Column<string>(type: "nvarchar(max)", nullable: false)
             },
             constraints: table =>

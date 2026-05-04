@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.12.0.0
+# Visual Studio Version 18
+VisualStudioVersion = 18.6.11723.189 insiders
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A0000000-0000-0000-0000-000000000001}"
 EndProject
@@ -9,12 +9,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A0000000
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_root", "_root", "{A0000000-0000-0000-0000-000000000003}"
 	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		CLAUDE.md = CLAUDE.md
 		Directory.Build.props = Directory.Build.props
 		Directory.Packages.props = Directory.Packages.props
 		global.json = global.json
 		README.md = README.md
-		CLAUDE.md = CLAUDE.md
-		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Loom.Domain", "src\Loom.Domain\Loom.Domain.csproj", "{B0000000-0000-0000-0000-000000000001}"
@@ -43,6 +43,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{A0000000-0
 		docs\adr\0002-foundry-first.md = docs\adr\0002-foundry-first.md
 		docs\adr\0003-strongly-typed-ids.md = docs\adr\0003-strongly-typed-ids.md
 		docs\design\loom-design.md = docs\design\loom-design.md
+		docs\sample-fragment-library.md = docs\sample-fragment-library.md
+		docs\team-walkthrough.md = docs\team-walkthrough.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Loom.Application.Tests", "tests\Loom.Application.Tests\Loom.Application.Tests.csproj", "{B676D5C5-49E5-4133-A393-A7CE5AC558C7}"
@@ -62,6 +64,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Loom.Integrations", "src\Loom.Integrations\Loom.Integrations.csproj", "{F253B601-8D7C-4054-99F3-39788F4D9E23}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Loom.Integrations.Tests", "tests\Loom.Integrations.Tests\Loom.Integrations.Tests.csproj", "{FA20A3DA-2B43-4604-A04E-676AEF88B9D7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Loom.Agents.Foundry", "src\Loom.Agents.Foundry\Loom.Agents.Foundry.csproj", "{873430A0-7BB5-438C-9068-13B5CDE79A7F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Loom.Agents.Foundry.Tests", "tests\Loom.Agents.Foundry.Tests\Loom.Agents.Foundry.Tests.csproj", "{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -289,6 +295,30 @@ Global
 		{FA20A3DA-2B43-4604-A04E-676AEF88B9D7}.Release|x64.Build.0 = Release|Any CPU
 		{FA20A3DA-2B43-4604-A04E-676AEF88B9D7}.Release|x86.ActiveCfg = Release|Any CPU
 		{FA20A3DA-2B43-4604-A04E-676AEF88B9D7}.Release|x86.Build.0 = Release|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Debug|x64.Build.0 = Debug|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Debug|x86.Build.0 = Debug|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Release|x64.ActiveCfg = Release|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Release|x64.Build.0 = Release|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Release|x86.ActiveCfg = Release|Any CPU
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F}.Release|x86.Build.0 = Release|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Debug|x64.Build.0 = Debug|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Debug|x86.Build.0 = Debug|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Release|x64.ActiveCfg = Release|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Release|x64.Build.0 = Release|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Release|x86.ActiveCfg = Release|Any CPU
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -312,5 +342,10 @@ Global
 		{63D3B015-656D-4782-A652-4DFF557575F8} = {A0000000-0000-0000-0000-000000000002}
 		{F253B601-8D7C-4054-99F3-39788F4D9E23} = {A0000000-0000-0000-0000-000000000001}
 		{FA20A3DA-2B43-4604-A04E-676AEF88B9D7} = {A0000000-0000-0000-0000-000000000002}
+		{873430A0-7BB5-438C-9068-13B5CDE79A7F} = {A0000000-0000-0000-0000-000000000001}
+		{E2DFB60C-2DE1-4F58-BB7A-1641038B74B6} = {A0000000-0000-0000-0000-000000000002}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {65E5EEE4-817D-48B4-91B8-DD44C62EF564}
 	EndGlobalSection
 EndGlobal

@@ -12,6 +12,8 @@
 
 @inject IFeatureService Features
 @inject IArtifactRepository ArtifactRepo
+@inject Loom.Application.Artifacts.IArtifactService Artifacts
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
 
 <PageTitle>@(_view?.Title ?? "Loading…") · Loom</PageTitle>
@@ -33,7 +35,25 @@ else
         <p class="page-meta">
             <a href="/">← Operating Picture</a>
         </p>
-        <h1 class="page-title">@_view.Title</h1>
+        @if (_renaming)
+        {
+            <div class="form-row" style="display:flex; gap:.5rem; align-items:center;">
+                <input @bind="_titleDraft" @bind:event="oninput" @onkeydown="OnRenameKey" placeholder="Title" />
+                <button class="btn-primary" @onclick="SaveRenameAsync" disabled="@_renamingBusy">Save</button>
+                <button class="btn-secondary" @onclick="CancelRename">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_renameError))
+            {
+                <p class="error">@_renameError</p>
+            }
+        }
+        else
+        {
+            <h1 class="page-title">
+                @_view.Title
+                <button class="btn-link" title="Rename" @onclick="StartRename" style="margin-left:.5rem; font-size:.8em;">✎</button>
+            </h1>
+        }
         <p class="page-meta">
             <PhasePill Phase="_view.Phase" />
             <span class="tree-type">@_view.Type.ToString().ToUpperInvariant()</span>
@@ -42,12 +62,38 @@ else
             {
                 <button class="btn-secondary" @onclick="AdvanceAsync">Advance to @_nextPhase</button>
             }
+            @if (_view.Phase != NodePhase.Archived)
+            {
+                <button class="btn-secondary" @onclick="ArchiveAsync" disabled="@_archivingBusy">
+                    @(_archivingBusy ? "Archiving…" : "Archive")
+                </button>
+            }
         </p>
     </header>
 
     <section class="ws-section">
-        <h2>Intent</h2>
-        @if (string.IsNullOrWhiteSpace(_view.Intent))
+        <h2>
+            Intent
+            @if (!_editingIntent)
+            {
+                <button class="btn-link" title="Edit intent" @onclick="StartEditIntent" style="font-size:.7em; margin-left:.5rem;">✎</button>
+            }
+        </h2>
+        @if (_editingIntent)
+        {
+            <textarea rows="4" style="width:100%;" @bind="_intentDraft" @bind:event="oninput"></textarea>
+            <div style="margin-top:.5rem; display:flex; gap:.5rem;">
+                <button class="btn-primary" @onclick="SaveIntentAsync" disabled="@_intentBusy">
+                    @(_intentBusy ? "Saving…" : "Save")
+                </button>
+                <button class="btn-secondary" @onclick="CancelEditIntent">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_intentError))
+            {
+                <p class="error">@_intentError</p>
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(_view.Intent))
         {
             <p class="muted">No intent set.</p>
         }
@@ -58,8 +104,42 @@ else
     </section>
 
     <section class="ws-section">
-        <h2>Outcomes (@_view.Outcomes.Count)</h2>
-        @if (_view.Outcomes.Count == 0)
+        <h2>
+            Outcomes (@_view.Outcomes.Count)
+            @if (!_editingOutcomes)
+            {
+                <button class="btn-link" title="Edit outcomes" @onclick="StartEditOutcomes" style="font-size:.7em; margin-left:.5rem;">✎</button>
+            }
+        </h2>
+        @if (_editingOutcomes)
+        {
+            <p class="muted">Each outcome: a statement, optional metric hint, and whether it's measurable.</p>
+            @for (var i = 0; i < _outcomeDrafts.Count; i++)
+            {
+                var idx = i;
+                <div class="form-row" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                    <input @bind="_outcomeDrafts[idx].Statement" placeholder="Outcome statement" style="flex:2;" />
+                    <input @bind="_outcomeDrafts[idx].MetricHint" placeholder="Metric hint (optional)" style="flex:1;" />
+                    <label style="display:flex; align-items:center; gap:.25rem;">
+                        <input type="checkbox" @bind="_outcomeDrafts[idx].Measurable" />
+                        measurable
+                    </label>
+                    <button class="btn-link" title="Remove" @onclick="@(() => _outcomeDrafts.RemoveAt(idx))">✕</button>
+                </div>
+            }
+            <div style="margin-top:.5rem; display:flex; gap:.5rem;">
+                <button class="btn-secondary" @onclick="@(() => _outcomeDrafts.Add(new OutcomeDraft()))">+ Add outcome</button>
+                <button class="btn-primary" @onclick="SaveOutcomesAsync" disabled="@_outcomesBusy">
+                    @(_outcomesBusy ? "Saving…" : "Save")
+                </button>
+                <button class="btn-secondary" @onclick="@(() => _editingOutcomes = false)">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_outcomesError))
+            {
+                <p class="error">@_outcomesError</p>
+            }
+        }
+        else if (_view.Outcomes.Count == 0)
         {
             <p class="muted">None yet.</p>
         }
@@ -79,8 +159,42 @@ else
     </section>
 
     <section class="ws-section">
-        <h2>Hypotheses (@_view.Hypotheses.Count)</h2>
-        @if (_view.Hypotheses.Count == 0)
+        <h2>
+            Hypotheses (@_view.Hypotheses.Count)
+            @if (!_editingHypotheses)
+            {
+                <button class="btn-link" title="Edit hypotheses" @onclick="StartEditHypotheses" style="font-size:.7em; margin-left:.5rem;">✎</button>
+            }
+        </h2>
+        @if (_editingHypotheses)
+        {
+            <p class="muted">Each hypothesis: <em>If [condition] then [effect] because [mechanism]</em>. Falsifiable, not assumed.</p>
+            @for (var i = 0; i < _hypothesisDrafts.Count; i++)
+            {
+                var idx = i;
+                <div class="form-row" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                    <span style="min-width:1.5rem; opacity:.6;">If</span>
+                    <input @bind="_hypothesisDrafts[idx].If" placeholder="condition" style="flex:1;" />
+                    <span style="opacity:.6;">then</span>
+                    <input @bind="_hypothesisDrafts[idx].Then" placeholder="effect" style="flex:1;" />
+                    <span style="opacity:.6;">because</span>
+                    <input @bind="_hypothesisDrafts[idx].Because" placeholder="mechanism" style="flex:1;" />
+                    <button class="btn-link" title="Remove" @onclick="@(() => RemoveHypothesisRow(idx))">✕</button>
+                </div>
+            }
+            <div style="margin-top:.5rem; display:flex; gap:.5rem;">
+                <button class="btn-secondary" @onclick="AddHypothesisRow">+ Add hypothesis</button>
+                <button class="btn-primary" @onclick="SaveHypothesesAsync" disabled="@_hypothesesBusy">
+                    @(_hypothesesBusy ? "Saving…" : "Save")
+                </button>
+                <button class="btn-secondary" @onclick="CancelEditHypotheses">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_hypothesesError))
+            {
+                <p class="error">@_hypothesesError</p>
+            }
+        }
+        else if (_view.Hypotheses.Count == 0)
         {
             <p class="muted">None yet.</p>
         }
@@ -96,8 +210,28 @@ else
     </section>
 
     <section class="ws-section">
-        <h2>Open questions (@_view.OpenQuestions.Count)</h2>
-        @if (_view.OpenQuestions.Count == 0)
+        <h2>
+            Open questions (@_view.OpenQuestions.Count)
+            @if (!_editingQuestions)
+            {
+                <button class="btn-link" title="Edit open questions" @onclick="StartEditQuestions" style="font-size:.7em; margin-left:.5rem;">✎</button>
+            }
+        </h2>
+        @if (_editingQuestions)
+        {
+            <textarea rows="6" style="width:100%;" @bind="_questionsDraft" placeholder="One question per line. Empty lines dropped on save."></textarea>
+            <div style="margin-top:.5rem; display:flex; gap:.5rem;">
+                <button class="btn-primary" @onclick="SaveQuestionsAsync" disabled="@_questionsBusy">
+                    @(_questionsBusy ? "Saving…" : "Save")
+                </button>
+                <button class="btn-secondary" @onclick="@(() => _editingQuestions = false)">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_questionsError))
+            {
+                <p class="error">@_questionsError</p>
+            }
+        }
+        else if (_view.OpenQuestions.Count == 0)
         {
             <p class="muted">None.</p>
         }
@@ -107,6 +241,109 @@ else
                 @foreach (var q in _view.OpenQuestions)
                 {
                     <li>@q</li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>
+            Stakeholders (@_view.Stakeholders.Count)
+            @if (!_editingStakeholders)
+            {
+                <button class="btn-link" title="Edit stakeholders" @onclick="StartEditStakeholders" style="font-size:.7em; margin-left:.5rem;">✎</button>
+            }
+        </h2>
+        @if (_editingStakeholders)
+        {
+            @for (var i = 0; i < _stakeholderDrafts.Count; i++)
+            {
+                var idx = i;
+                <div class="form-row" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                    <input @bind="_stakeholderDrafts[idx].Name" placeholder="Name" style="flex:1;" />
+                    <input @bind="_stakeholderDrafts[idx].Role" placeholder="Role (PO, UX, tech-lead…)" style="flex:1;" />
+                    <input @bind="_stakeholderDrafts[idx].Interest" placeholder="Interest (optional)" style="flex:1;" />
+                    <button class="btn-link" title="Remove" @onclick="@(() => _stakeholderDrafts.RemoveAt(idx))">✕</button>
+                </div>
+            }
+            <div style="margin-top:.5rem; display:flex; gap:.5rem;">
+                <button class="btn-secondary" @onclick="@(() => _stakeholderDrafts.Add(new StakeholderDraft()))">+ Add stakeholder</button>
+                <button class="btn-primary" @onclick="SaveStakeholdersAsync" disabled="@_stakeholdersBusy">
+                    @(_stakeholdersBusy ? "Saving…" : "Save")
+                </button>
+                <button class="btn-secondary" @onclick="@(() => _editingStakeholders = false)">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_stakeholdersError))
+            {
+                <p class="error">@_stakeholdersError</p>
+            }
+        }
+        else if (_view.Stakeholders.Count == 0)
+        {
+            <p class="muted">None.</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var s in _view.Stakeholders)
+                {
+                    <li>
+                        <strong>@s.Name</strong>
+                        <span class="muted"> · @s.Role</span>
+                        @if (!string.IsNullOrWhiteSpace(s.Interest)) { <span class="muted"> — @s.Interest</span> }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>
+            Constraints (@_view.Constraints.Count)
+            @if (!_editingConstraints)
+            {
+                <button class="btn-link" title="Edit constraints" @onclick="StartEditConstraints" style="font-size:.7em; margin-left:.5rem;">✎</button>
+            }
+        </h2>
+        @if (_editingConstraints)
+        {
+            <p class="muted">A constraint is a boundary the feature must respect. The kind drives downstream gating (e.g. regulatory pulls in a compliance fragment).</p>
+            @for (var i = 0; i < _constraintDrafts.Count; i++)
+            {
+                var idx = i;
+                <div class="form-row" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.5rem;">
+                    <select @bind="_constraintDrafts[idx].Kind" style="flex:0 0 9rem;">
+                        @foreach (var k in Enum.GetValues<Loom.Domain.Nodes.ConstraintKind>())
+                        {
+                            <option value="@k">@k</option>
+                        }
+                    </select>
+                    <input @bind="_constraintDrafts[idx].Detail" placeholder="What the constraint says" style="flex:1;" />
+                    <button class="btn-link" title="Remove" @onclick="@(() => _constraintDrafts.RemoveAt(idx))">✕</button>
+                </div>
+            }
+            <div style="margin-top:.5rem; display:flex; gap:.5rem;">
+                <button class="btn-secondary" @onclick="@(() => _constraintDrafts.Add(new ConstraintDraft()))">+ Add constraint</button>
+                <button class="btn-primary" @onclick="SaveConstraintsAsync" disabled="@_constraintsBusy">
+                    @(_constraintsBusy ? "Saving…" : "Save")
+                </button>
+                <button class="btn-secondary" @onclick="@(() => _editingConstraints = false)">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_constraintsError))
+            {
+                <p class="error">@_constraintsError</p>
+            }
+        }
+        else if (_view.Constraints.Count == 0)
+        {
+            <p class="muted">None.</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var c in _view.Constraints)
+                {
+                    <li><span class="badge">@c.Kind</span> @c.Detail</li>
                 }
             </ul>
         }
@@ -130,7 +367,57 @@ else
     </section>
 
     <section class="ws-section">
-        <h2>Artifacts (@_artifacts.Count)</h2>
+        <h2>
+            Artifacts (@_artifacts.Count)
+            <button class="btn-link" title="Attach an artifact" @onclick="ToggleAttachArtifact" style="font-size:.7em; margin-left:.5rem;">
+                @(_attachingArtifact ? "✕" : "+ Attach")
+            </button>
+        </h2>
+        @if (_attachingArtifact)
+        {
+            <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:.5rem; margin-bottom:.5rem;">
+                <label>
+                    Title
+                    <input @bind="_attachDraft.Title" placeholder="e.g. PSD2 SCA flow wireframe" />
+                </label>
+                <label>
+                    Kind
+                    <select @bind="_attachDraft.Kind">
+                        @foreach (var k in Enum.GetValues<Loom.Domain.Artifacts.ArtifactKind>())
+                        {
+                            <option value="@k">@k</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Store
+                    <select @bind="_attachDraft.Store">
+                        @foreach (var s in Enum.GetValues<Loom.Domain.Artifacts.CanonicalStore>())
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    URL
+                    <input @bind="_attachDraft.Url" placeholder="https://figma.com/file/... or git blob URL" />
+                </label>
+                <label style="grid-column:1 / span 2;">
+                    External id (optional — Figma node id, git sha, Confluence page id…)
+                    <input @bind="_attachDraft.ExternalId" placeholder="optional" />
+                </label>
+            </div>
+            <div style="display:flex; gap:.5rem;">
+                <button class="btn-primary" @onclick="SaveAttachAsync" disabled="@_attachBusy">
+                    @(_attachBusy ? "Attaching…" : "Attach artifact")
+                </button>
+                <button class="btn-secondary" @onclick="ToggleAttachArtifact">Cancel</button>
+            </div>
+            @if (!string.IsNullOrEmpty(_attachError))
+            {
+                <p class="error">@_attachError</p>
+            }
+        }
         @if (_artifacts.Count == 0)
         {
             <p class="muted">No artifacts attached.</p>
@@ -143,6 +430,11 @@ else
                     <li>
                         <a href="@($"/artifacts/{a.Id.Value:D}")">@a.Title</a>
                         <span class="muted"> · @a.Kind · v@(a.CurrentVersion?.VersionNumber ?? 0)</span>
+                        @if (a.Canonical.Url is not null)
+                        {
+                            <span class="muted"> · </span>
+                            <a href="@a.Canonical.Url" target="_blank" rel="noopener">@a.Canonical.Store</a>
+                        }
                         @if (a.Lock is not null && a.Lock.IsActiveAt(DateTimeOffset.UtcNow))
                         {
                             <span class="muted"> · 🔒 locked</span>
@@ -195,6 +487,83 @@ else
     private NodePhase? _nextPhase;
     private HubConnection? _hub;
     private IReadOnlyList<Loom.Domain.Artifacts.Artifact> _artifacts = [];
+
+    private bool _renaming;
+    private bool _renamingBusy;
+    private string _titleDraft = string.Empty;
+    private string? _renameError;
+    private bool _archivingBusy;
+
+    private bool _editingIntent;
+    private string _intentDraft = string.Empty;
+    private bool _intentBusy;
+    private string? _intentError;
+
+    private bool _editingHypotheses;
+    private List<HypothesisDraft> _hypothesisDrafts = [];
+    private bool _hypothesesBusy;
+    private string? _hypothesesError;
+
+    private bool _attachingArtifact;
+    private bool _attachBusy;
+    private string? _attachError;
+    private AttachArtifactDraft _attachDraft = new();
+
+    private sealed class AttachArtifactDraft
+    {
+        public string Title { get; set; } = string.Empty;
+        public Loom.Domain.Artifacts.ArtifactKind Kind { get; set; } = Loom.Domain.Artifacts.ArtifactKind.Doc;
+        public Loom.Domain.Artifacts.CanonicalStore Store { get; set; } = Loom.Domain.Artifacts.CanonicalStore.HubNative;
+        public string Url { get; set; } = string.Empty;
+        public string ExternalId { get; set; } = string.Empty;
+    }
+
+    private bool _editingOutcomes;
+    private List<OutcomeDraft> _outcomeDrafts = [];
+    private bool _outcomesBusy;
+    private string? _outcomesError;
+
+    private sealed class OutcomeDraft
+    {
+        public string Statement { get; set; } = string.Empty;
+        public string MetricHint { get; set; } = string.Empty;
+        public bool Measurable { get; set; }
+    }
+
+    private bool _editingQuestions;
+    private string _questionsDraft = string.Empty;
+    private bool _questionsBusy;
+    private string? _questionsError;
+
+    private bool _editingStakeholders;
+    private List<StakeholderDraft> _stakeholderDrafts = [];
+    private bool _stakeholdersBusy;
+    private string? _stakeholdersError;
+
+    private sealed class StakeholderDraft
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public string Interest { get; set; } = string.Empty;
+    }
+
+    private bool _editingConstraints;
+    private List<ConstraintDraft> _constraintDrafts = [];
+    private bool _constraintsBusy;
+    private string? _constraintsError;
+
+    private sealed class ConstraintDraft
+    {
+        public Loom.Domain.Nodes.ConstraintKind Kind { get; set; } = Loom.Domain.Nodes.ConstraintKind.Other;
+        public string Detail { get; set; } = string.Empty;
+    }
+
+    private sealed class HypothesisDraft
+    {
+        public string If { get; set; } = string.Empty;
+        public string Then { get; set; } = string.Empty;
+        public string Because { get; set; } = string.Empty;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -249,6 +618,412 @@ else
         if (_view is null || _nextPhase is null) return;
         await Features.AdvancePhaseAsync(_view.NodeId, _nextPhase.Value);
         await LoadAsync();
+    }
+
+    private void StartRename()
+    {
+        if (_view is null) return;
+        _titleDraft = _view.Title;
+        _renameError = null;
+        _renaming = true;
+    }
+
+    private void CancelRename()
+    {
+        _renaming = false;
+        _renameError = null;
+    }
+
+    private async Task OnRenameKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveRenameAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelRename();
+        }
+    }
+
+    private async Task SaveRenameAsync()
+    {
+        if (_view is null || _renamingBusy) return;
+        var newTitle = (_titleDraft ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(newTitle))
+        {
+            _renameError = "Title can't be empty.";
+            return;
+        }
+        if (newTitle == _view.Title)
+        {
+            _renaming = false;
+            return;
+        }
+        _renamingBusy = true;
+        _renameError = null;
+        try
+        {
+            await Features.RenameAsync(_view.NodeId, newTitle, CurrentUser.GetUserId());
+            _renaming = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _renameError = ex.Message;
+        }
+        finally
+        {
+            _renamingBusy = false;
+        }
+    }
+
+    private void StartEditIntent()
+    {
+        if (_view is null) return;
+        _intentDraft = _view.Intent ?? string.Empty;
+        _intentError = null;
+        _editingIntent = true;
+    }
+
+    private void CancelEditIntent()
+    {
+        _editingIntent = false;
+        _intentError = null;
+    }
+
+    private async Task SaveIntentAsync()
+    {
+        if (_view is null || _intentBusy) return;
+        _intentBusy = true;
+        _intentError = null;
+        try
+        {
+            var trimmed = (_intentDraft ?? string.Empty).Trim();
+            await Features.SetIntentAsync(_view.NodeId, string.IsNullOrEmpty(trimmed) ? null : trimmed, CurrentUser.GetUserId());
+            _editingIntent = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _intentError = ex.Message;
+        }
+        finally
+        {
+            _intentBusy = false;
+        }
+    }
+
+    private void StartEditHypotheses()
+    {
+        if (_view is null) return;
+        _hypothesisDrafts = [.. _view.Hypotheses.Select(h => new HypothesisDraft { If = h.If, Then = h.Then, Because = h.Because })];
+        _hypothesesError = null;
+        _editingHypotheses = true;
+    }
+
+    private void CancelEditHypotheses()
+    {
+        _editingHypotheses = false;
+        _hypothesesError = null;
+    }
+
+    private void AddHypothesisRow() => _hypothesisDrafts.Add(new HypothesisDraft());
+
+    private void RemoveHypothesisRow(int index)
+    {
+        if (index >= 0 && index < _hypothesisDrafts.Count)
+        {
+            _hypothesisDrafts.RemoveAt(index);
+        }
+    }
+
+    private async Task SaveHypothesesAsync()
+    {
+        if (_view is null || _hypothesesBusy) return;
+        _hypothesesBusy = true;
+        _hypothesesError = null;
+        try
+        {
+            // Drop fully-empty rows; require all three fields on the rest.
+            var cleaned = _hypothesisDrafts
+                .Select(d => new
+                {
+                    If = (d.If ?? string.Empty).Trim(),
+                    Then = (d.Then ?? string.Empty).Trim(),
+                    Because = (d.Because ?? string.Empty).Trim()
+                })
+                .Where(d => !(string.IsNullOrEmpty(d.If) && string.IsNullOrEmpty(d.Then) && string.IsNullOrEmpty(d.Because)))
+                .ToList();
+            if (cleaned.Any(d => string.IsNullOrEmpty(d.If) || string.IsNullOrEmpty(d.Then) || string.IsNullOrEmpty(d.Because)))
+            {
+                _hypothesesError = "Each hypothesis needs all three parts (If / Then / Because). Remove the row to drop it.";
+                return;
+            }
+            var hypotheses = cleaned
+                .Select(d => new Loom.Domain.Nodes.Hypothesis(d.If, d.Then, d.Because))
+                .ToList();
+            await Features.ReplaceHypothesesAsync(_view.NodeId, hypotheses, CurrentUser.GetUserId());
+            _editingHypotheses = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _hypothesesError = ex.Message;
+        }
+        finally
+        {
+            _hypothesesBusy = false;
+        }
+    }
+
+    private void ToggleAttachArtifact()
+    {
+        _attachingArtifact = !_attachingArtifact;
+        if (_attachingArtifact)
+        {
+            _attachDraft = new AttachArtifactDraft();
+            _attachError = null;
+        }
+    }
+
+    private async Task SaveAttachAsync()
+    {
+        if (_view is null || _attachBusy) return;
+        var title = (_attachDraft.Title ?? string.Empty).Trim();
+        var url = (_attachDraft.Url ?? string.Empty).Trim();
+        var externalId = (_attachDraft.ExternalId ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            _attachError = "Title is required.";
+            return;
+        }
+        // For non-HubNative stores, require either a URL or an External id —
+        // we need *something* to address the canonical content.
+        if (_attachDraft.Store != Loom.Domain.Artifacts.CanonicalStore.HubNative
+            && string.IsNullOrEmpty(url) && string.IsNullOrEmpty(externalId))
+        {
+            _attachError = "Provide a URL or external id for non-hub-native artifacts.";
+            return;
+        }
+        _attachBusy = true;
+        _attachError = null;
+        try
+        {
+            var canonical = new Loom.Domain.Artifacts.CanonicalPointer(
+                Store: _attachDraft.Store,
+                ExternalId: string.IsNullOrEmpty(externalId) ? (url ?? string.Empty) : externalId,
+                Url: string.IsNullOrEmpty(url) ? null : url);
+            await Artifacts.CreateAsync(_view.NodeId, _attachDraft.Kind, title, canonical);
+            _attachingArtifact = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _attachError = ex.Message;
+        }
+        finally
+        {
+            _attachBusy = false;
+        }
+    }
+
+    // ── Outcomes editor ─────────────────────────────────────────────
+    private void StartEditOutcomes()
+    {
+        if (_view is null) return;
+        _outcomeDrafts = [.. _view.Outcomes.Select(o => new OutcomeDraft
+        {
+            Statement = o.Statement,
+            MetricHint = o.MetricHint ?? string.Empty,
+            Measurable = o.Measurable
+        })];
+        _outcomesError = null;
+        _editingOutcomes = true;
+    }
+
+    private async Task SaveOutcomesAsync()
+    {
+        if (_view is null || _outcomesBusy) return;
+        _outcomesBusy = true;
+        _outcomesError = null;
+        try
+        {
+            var cleaned = _outcomeDrafts
+                .Select(d => new OutcomeDraft
+                {
+                    Statement = (d.Statement ?? string.Empty).Trim(),
+                    MetricHint = (d.MetricHint ?? string.Empty).Trim(),
+                    Measurable = d.Measurable
+                })
+                .Where(d => !string.IsNullOrEmpty(d.Statement))
+                .Select(d => Loom.Domain.Nodes.Outcome.Of(
+                    d.Statement,
+                    string.IsNullOrEmpty(d.MetricHint) ? null : d.MetricHint,
+                    d.Measurable))
+                .ToList();
+            await Features.ReplaceOutcomesAsync(_view.NodeId, cleaned, CurrentUser.GetUserId());
+            _editingOutcomes = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _outcomesError = ex.Message;
+        }
+        catch (ArgumentException ex)
+        {
+            _outcomesError = ex.Message;
+        }
+        finally
+        {
+            _outcomesBusy = false;
+        }
+    }
+
+    // ── Open Questions editor ───────────────────────────────────────
+    private void StartEditQuestions()
+    {
+        if (_view is null) return;
+        _questionsDraft = string.Join("\n", _view.OpenQuestions);
+        _questionsError = null;
+        _editingQuestions = true;
+    }
+
+    private async Task SaveQuestionsAsync()
+    {
+        if (_view is null || _questionsBusy) return;
+        _questionsBusy = true;
+        _questionsError = null;
+        try
+        {
+            var lines = (_questionsDraft ?? string.Empty)
+                .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .ToList();
+            await Features.ReplaceOpenQuestionsAsync(_view.NodeId, lines, CurrentUser.GetUserId());
+            _editingQuestions = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _questionsError = ex.Message;
+        }
+        finally
+        {
+            _questionsBusy = false;
+        }
+    }
+
+    // ── Stakeholders editor ─────────────────────────────────────────
+    private void StartEditStakeholders()
+    {
+        if (_view is null) return;
+        _stakeholderDrafts = [.. _view.Stakeholders.Select(s => new StakeholderDraft
+        {
+            Name = s.Name,
+            Role = s.Role,
+            Interest = s.Interest ?? string.Empty
+        })];
+        _stakeholdersError = null;
+        _editingStakeholders = true;
+    }
+
+    private async Task SaveStakeholdersAsync()
+    {
+        if (_view is null || _stakeholdersBusy) return;
+        _stakeholdersBusy = true;
+        _stakeholdersError = null;
+        try
+        {
+            var cleaned = _stakeholderDrafts
+                .Select(d => new
+                {
+                    Name = (d.Name ?? string.Empty).Trim(),
+                    Role = (d.Role ?? string.Empty).Trim(),
+                    Interest = (d.Interest ?? string.Empty).Trim()
+                })
+                .Where(d => !(string.IsNullOrEmpty(d.Name) && string.IsNullOrEmpty(d.Role)))
+                .ToList();
+            if (cleaned.Any(d => string.IsNullOrEmpty(d.Name) || string.IsNullOrEmpty(d.Role)))
+            {
+                _stakeholdersError = "Each stakeholder needs both a Name and a Role. Remove the row to drop it.";
+                return;
+            }
+            var stakeholders = cleaned
+                .Select(d => new Loom.Domain.Nodes.Stakeholder(
+                    UserId: null,
+                    Name: d.Name,
+                    Role: d.Role,
+                    Interest: string.IsNullOrEmpty(d.Interest) ? null : d.Interest))
+                .ToList();
+            await Features.ReplaceStakeholdersAsync(_view.NodeId, stakeholders, CurrentUser.GetUserId());
+            _editingStakeholders = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _stakeholdersError = ex.Message;
+        }
+        finally
+        {
+            _stakeholdersBusy = false;
+        }
+    }
+
+    // ── Constraints editor ──────────────────────────────────────────
+    private void StartEditConstraints()
+    {
+        if (_view is null) return;
+        _constraintDrafts = [.. _view.Constraints.Select(c => new ConstraintDraft
+        {
+            Kind = c.Kind,
+            Detail = c.Detail
+        })];
+        _constraintsError = null;
+        _editingConstraints = true;
+    }
+
+    private async Task SaveConstraintsAsync()
+    {
+        if (_view is null || _constraintsBusy) return;
+        _constraintsBusy = true;
+        _constraintsError = null;
+        try
+        {
+            var cleaned = _constraintDrafts
+                .Select(d => new { d.Kind, Detail = (d.Detail ?? string.Empty).Trim() })
+                .Where(d => !string.IsNullOrEmpty(d.Detail))
+                .Select(d => new Loom.Domain.Nodes.Constraint(d.Kind, d.Detail))
+                .ToList();
+            await Features.ReplaceConstraintsAsync(_view.NodeId, cleaned, CurrentUser.GetUserId());
+            _editingConstraints = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _constraintsError = ex.Message;
+        }
+        finally
+        {
+            _constraintsBusy = false;
+        }
+    }
+
+    private async Task ArchiveAsync()
+    {
+        if (_view is null || _archivingBusy) return;
+        _archivingBusy = true;
+        try
+        {
+            await Features.AdvancePhaseAsync(_view.NodeId, NodePhase.Archived);
+            Nav.NavigateTo("/");
+        }
+        catch (Loom.Domain.Common.DomainException)
+        {
+            _archivingBusy = false;
+            // Stay on the page; the Advance call's domain error will be
+            // surfaced via the next LoadAsync() phase reading.
+            await LoadAsync();
+        }
     }
 
     private static NodePhase? NextPhase(NodePhase? from) => from switch

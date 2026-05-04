@@ -21,7 +21,10 @@ namespace Loom.Application.Workflows.Enrichment;
 public static class EnrichmentWorkflowFactory
 {
     public const string WorkflowKey = "enrichment";
-    public const int CurrentVersion = 1;
+    // v2 — switched the agent steps from EngineName.Anthropic to
+    // EngineName.Foundry per ADR-0017. See KickoffWorkflowFactory for
+    // the bump rationale.
+    public const int CurrentVersion = 2;
 
     public const string AcceptanceStepKey = "acceptance";
     public const string RisksStepKey = "risks";
@@ -40,7 +43,7 @@ public static class EnrichmentWorkflowFactory
                 Key: AcceptanceStepKey,
                 Kind: WorkflowStepKind.Agent,
                 Gating: WorkflowStepGating.Auto,
-                EnginePref: EngineName.Anthropic,
+                EnginePref: EngineName.Foundry,
                 OutputSchemaName: "AcceptanceCriteria",
                 Budgets: defaultBudgets,
                 Selectors:
@@ -53,7 +56,7 @@ public static class EnrichmentWorkflowFactory
                 Key: RisksStepKey,
                 Kind: WorkflowStepKind.Agent,
                 Gating: WorkflowStepGating.Auto,
-                EnginePref: EngineName.Anthropic,
+                EnginePref: EngineName.Foundry,
                 OutputSchemaName: "RiskRegister",
                 Budgets: defaultBudgets,
                 Selectors:

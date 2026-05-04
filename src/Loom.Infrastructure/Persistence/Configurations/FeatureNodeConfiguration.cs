@@ -29,12 +29,17 @@ internal sealed class FeatureNodeConfiguration : IEntityTypeConfiguration<Featur
         b.Property(n => n.CreatedAt).IsRequired();
         b.Property(n => n.UpdatedAt).IsRequired();
 
-        // Optimistic concurrency on the Version field. SQL Server uses
-        // rowversion (auto-generated). SQLite has no equivalent — the
-        // DbContext rewrites this property to a plain int with default 0
-        // when running against SQLite (see LoomDbContext.OnModelCreating).
+        // Optimistic concurrency: Version is a uint that the domain
+        // increments on every state change (see FeatureNode.cs). EF
+        // treats it as a non-server-generated concurrency token —
+        // matches both MSSQL and SQLite without provider-specific
+        // workarounds. (The previous IsRowVersion() configuration
+        // mismatched the uint property type with the rowversion byte[]
+        // column, which fell over on first INSERT round-trip.)
         b.Property(n => n.Version)
-            .IsRowVersion();
+            .IsConcurrencyToken()
+            .ValueGeneratedNever()
+            .HasDefaultValue(0u);
 
         // Self-referencing tree.
         b.HasOne<FeatureNode>()

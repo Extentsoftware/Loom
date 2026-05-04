@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Loom.Agents.Foundry</RootNamespace>
+    <AssemblyName>Loom.Agents.Foundry</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Loom.Application\Loom.Application.csproj" />
+    <ProjectReference Include="..\Loom.Domain\Loom.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Foundry runtime targets the Azure OpenAI Chat Completions surface
+      (Surface A in ADR-0017): /openai/deployments/{deployment}/chat/completions.
+      We POST + read SSE directly via HttpClient, mirroring the Anthropic
+      runtime's no-SDK posture (ADR-0005). The deployment URL determines
+      the model; auth is api-key for v1 (no Entra dependency yet).
+    -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+
+</Project>

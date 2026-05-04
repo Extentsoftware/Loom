@@ -426,8 +426,8 @@ namespace Loom.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bigint");
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.PrimitiveCollection<string>("_openQuestions")
                         .IsRequired()
@@ -458,6 +458,11 @@ namespace Loom.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsArchived")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -973,15 +978,21 @@ namespace Loom.Infrastructure.Persistence.Migrations
                                 .HasColumnName("hints_preferred_model");
 
                             b1.Property<bool>("PrefersExtendedThinking")
+                                .ValueGeneratedOnAdd()
                                 .HasColumnType("bit")
+                                .HasDefaultValue(false)
                                 .HasColumnName("hints_prefers_extended_thinking");
 
                             b1.Property<bool>("RequiresFilesystem")
+                                .ValueGeneratedOnAdd()
                                 .HasColumnType("bit")
+                                .HasDefaultValue(false)
                                 .HasColumnName("hints_requires_filesystem");
 
                             b1.Property<bool>("RequiresJsonOutput")
+                                .ValueGeneratedOnAdd()
                                 .HasColumnType("bit")
+                                .HasDefaultValue(false)
                                 .HasColumnName("hints_requires_json_output");
 
                             b1.HasKey("FragmentVersionId");

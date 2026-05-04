@@ -19,9 +19,11 @@ using Microsoft.Extensions.Hosting;
 //
 // Idempotent: if the project slug already exists, nothing is changed.
 
+// Default points at the docker-compose MSSQL service (`docker compose up`).
+// Override with LOOM_CONNECTION when running against another DB.
 var connection =
     Environment.GetEnvironmentVariable("LOOM_CONNECTION")
-    ?? "Server=(localdb)\\MSSQLLocalDB;Database=loom;Trusted_Connection=True;TrustServerCertificate=True";
+    ?? "Server=localhost,1433;Database=loom;User Id=sa;Password=Loom_dev_pwd_1!;TrustServerCertificate=True;Encrypt=False";
 
 Console.WriteLine($"[seed] connection: {Redact(connection)}");
 

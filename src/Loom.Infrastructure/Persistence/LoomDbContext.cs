@@ -69,17 +69,11 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
 
         if (isSqlite)
         {
-            // SQLite has no rowversion. FeatureNode.Version was configured
-            // as IsRowVersion which makes EF skip writing the column on
-            // INSERT and read it back via RETURNING. SQLite never supplies
-            // a value, so we drop the value-generation behaviour and add a
-            // DB-level default of 0. Concurrency-checking is best-effort
-            // on SQLite (dev provider only).
-            var versionProp = modelBuilder.Entity<Loom.Domain.Nodes.FeatureNode>()
-                .Property(n => n.Version);
-            versionProp.Metadata.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
-            versionProp.Metadata.IsConcurrencyToken = false;
-            versionProp.HasDefaultValue(0u);
+            // FeatureNode.Version is now configured globally as a
+            // non-server-generated concurrency token (see
+            // FeatureNodeConfiguration), so the SQLite-specific tweak
+            // that previously disabled rowversion semantics is no
+            // longer needed.
 
             // SQLite has no IDENTITY equivalent; tell EF to not treat the
             // Sequence column as server-generated so it's included in the
@@ -88,6 +82,29 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
             var seqProp = modelBuilder.Entity<Loom.Infrastructure.Outbox.OutboxEntry>()
                 .Property(e => e.Sequence);
             seqProp.Metadata.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.Never;
+
+            // SQLite stores DateTimeOffset as TEXT and refuses to translate
+            // ORDER BY against it (string compare doesn't sort offset-aware
+            // values correctly). Convert every DateTimeOffset[?] property
+            // in the model to long (UTC ticks) so SQLite stores them as
+            // INTEGER. Read-back returns UTC — Loom uses these timestamps
+            // for ordering, audit, and elapsed-time math, never for
+            // offset-sensitive display, so this is acceptable on the dev
+            // provider. MSSQL keeps native datetimeoffset semantics.
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTimeOffset))
+                    {
+                        property.SetValueConverter(Loom.Infrastructure.Persistence.Configurations.ValueConverters.DateTimeOffsetToTicks);
+                    }
+                    else if (property.ClrType == typeof(DateTimeOffset?))
+                    {
+                        property.SetValueConverter(Loom.Infrastructure.Persistence.Configurations.ValueConverters.NullableDateTimeOffsetToTicks);
+                    }
+                }
+            }
         }
 
         base.OnModelCreating(modelBuilder);

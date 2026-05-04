@@ -70,7 +70,10 @@ public sealed class ProjectRepository(LoomDbContext db) : IProjectRepository
     }
 
     public async Task<IReadOnlyList<Project>> ListAsync(CancellationToken ct = default) =>
-        await db.Projects.OrderBy(p => p.Name).ToListAsync(ct);
+        await db.Projects.Where(p => !p.IsArchived).OrderBy(p => p.Name).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Project>> ListAllAsync(CancellationToken ct = default) =>
+        await db.Projects.OrderBy(p => p.IsArchived).ThenBy(p => p.Name).ToListAsync(ct);
 
     public Task AddAsync(Project project, CancellationToken ct = default)
     {
@@ -81,14 +84,22 @@ public sealed class ProjectRepository(LoomDbContext db) : IProjectRepository
 
 public sealed class FragmentRepository(LoomDbContext db) : IFragmentRepository
 {
+    // Versions are stored under a private "_versions" backing field on
+    // Fragment; without an explicit Include EF returns an empty collection
+    // and FragmentDetail.razor renders "No version published yet" even
+    // for fragments that have content.
     public Task<Fragment?> GetAsync(FragmentId id, CancellationToken ct = default) =>
-        db.Fragments.FirstOrDefaultAsync(f => f.Id == id, ct);
+        db.Fragments
+            .Include("_versions")
+            .FirstOrDefaultAsync(f => f.Id == id, ct);
 
     public Task<Fragment?> GetByKeyAsync(string key, FragmentScope scope, Guid? scopeId, CancellationToken ct = default)
     {
         var k = Domain.Common.Slug.From(key);
-        return db.Fragments.FirstOrDefaultAsync(
-            f => f.Key == k && f.Scope == scope && f.ScopeId == scopeId, ct);
+        return db.Fragments
+            .Include("_versions")
+            .FirstOrDefaultAsync(
+                f => f.Key == k && f.Scope == scope && f.ScopeId == scopeId, ct);
     }
 
     public async Task<IReadOnlyList<Fragment>> ListByCategoryAsync(FragmentCategory category, CancellationToken ct = default) =>

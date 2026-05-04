@@ -31,6 +31,30 @@ public sealed class FeatureService(
         return p;
     }
 
+    public async Task RenameProjectAsync(Guid projectId, string newName, CancellationToken ct = default)
+    {
+        var project = await projects.GetAsync(projectId, ct)
+            ?? throw new DomainException($"Project {projectId} not found.");
+        project.Rename(newName, clock.UtcNow);
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task ArchiveProjectAsync(Guid projectId, CancellationToken ct = default)
+    {
+        var project = await projects.GetAsync(projectId, ct)
+            ?? throw new DomainException($"Project {projectId} not found.");
+        project.Archive(clock.UtcNow);
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task UnarchiveProjectAsync(Guid projectId, CancellationToken ct = default)
+    {
+        var project = await projects.GetAsync(projectId, ct)
+            ?? throw new DomainException($"Project {projectId} not found.");
+        project.Unarchive(clock.UtcNow);
+        await uow.SaveChangesAsync(ct);
+    }
+
     public async Task<FeatureNode> CreateRootNodeAsync(
         Guid projectId,
         Slug slug,
@@ -65,19 +89,64 @@ public sealed class FeatureService(
         return node;
     }
 
-    public async Task RenameAsync(NodeId nodeId, string title, CancellationToken ct = default)
+    public async Task RenameAsync(NodeId nodeId, string title, Guid actorId = default, CancellationToken ct = default)
     {
         var node = await GetOrThrow(nodeId, ct);
         node.Rename(title, clock.UtcNow);
-        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow));
+        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow, NodeEditKind.Title, actorId));
         await uow.SaveChangesAsync(ct);
     }
 
-    public async Task SetIntentAsync(NodeId nodeId, string? intent, CancellationToken ct = default)
+    public async Task SetIntentAsync(NodeId nodeId, string? intent, Guid actorId = default, CancellationToken ct = default)
     {
         var node = await GetOrThrow(nodeId, ct);
         node.SetIntent(intent, clock.UtcNow);
-        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow));
+        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow, NodeEditKind.Intent, actorId));
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task ReplaceHypothesesAsync(NodeId nodeId, IReadOnlyList<Hypothesis> hypotheses, Guid actorId = default, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(hypotheses);
+        var node = await GetOrThrow(nodeId, ct);
+        node.ReplaceHypotheses(hypotheses, clock.UtcNow);
+        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow, NodeEditKind.Hypotheses, actorId));
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task ReplaceOutcomesAsync(NodeId nodeId, IReadOnlyList<Outcome> outcomes, Guid actorId = default, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(outcomes);
+        var node = await GetOrThrow(nodeId, ct);
+        node.ReplaceOutcomes(outcomes, clock.UtcNow);
+        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow, NodeEditKind.Outcomes, actorId));
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task ReplaceConstraintsAsync(NodeId nodeId, IReadOnlyList<Constraint> constraints, Guid actorId = default, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(constraints);
+        var node = await GetOrThrow(nodeId, ct);
+        node.ReplaceConstraints(constraints, clock.UtcNow);
+        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow, NodeEditKind.Constraints, actorId));
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task ReplaceOpenQuestionsAsync(NodeId nodeId, IReadOnlyList<string> questions, Guid actorId = default, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(questions);
+        var node = await GetOrThrow(nodeId, ct);
+        node.ReplaceOpenQuestions(questions, clock.UtcNow);
+        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow, NodeEditKind.OpenQuestions, actorId));
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task ReplaceStakeholdersAsync(NodeId nodeId, IReadOnlyList<Stakeholder> stakeholders, Guid actorId = default, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(stakeholders);
+        var node = await GetOrThrow(nodeId, ct);
+        node.ReplaceStakeholders(stakeholders, clock.UtcNow);
+        events.Add(new NodeUpdated(node.Id, node.ProjectId, clock.UtcNow, NodeEditKind.Stakeholders, actorId));
         await uow.SaveChangesAsync(ct);
     }
 

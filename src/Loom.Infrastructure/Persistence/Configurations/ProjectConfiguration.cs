@@ -20,6 +20,9 @@ internal sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
         b.Property(p => p.Description).HasMaxLength(2000);
         b.Property(p => p.CreatedAt).IsRequired();
         b.Property(p => p.UpdatedAt).IsRequired();
+        // DB-level default false matches the SQLite-bool-default pattern
+        // (commit 26defda) and keeps the column NOT NULL on MSSQL too.
+        b.Property(p => p.IsArchived).HasDefaultValue(false);
 
         b.HasIndex(p => p.Slug).IsUnique();
     }

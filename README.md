@@ -31,8 +31,10 @@ Two human gates only. Everything else automated but auditable.
 src/
   Loom.Domain          entities, value objects, no dependencies
   Loom.Application     services, workflow engine, fragment composition
-  Loom.Infrastructure  EF Core, MSSQL, Elasticsearch, Blob
-  Loom.Agents          IAgentRuntime, FoundryAgentRuntime, router
+  Loom.Infrastructure  EF Core, MSSQL/SQLite, Elasticsearch, Blob
+  Loom.Agents.Foundry  Azure OpenAI Chat Completions runtime (default)
+  Loom.Agents.Anthropic Anthropic Messages API runtime
+  Loom.Agents.InProc   stage-0 in-process steps (transcript normalize)
   Loom.Integrations    ADO, Atlassian, Figma, Miro, Graph adapters
   Loom.Mcp             MCP server (read+write tools)
   Loom.Web             Blazor Server app, SignalR hubs
@@ -42,6 +44,9 @@ tests/                 mirrors src/ structure
 docs/
   adr/                 architecture decision records
   design/              design overview and screen mockups
+  fragment-library.md  reference for the bootstrapped fragment library
+  workflows.md         how workflows are constructed, executed, extended
+  team-walkthrough.md  end-to-end walkthrough + role guide + roadmap
 deploy/                bicep + docker
 ```
 
@@ -50,8 +55,22 @@ deploy/                bicep + docker
 **Prerequisites**
 
 - .NET 10 SDK (see `global.json`)
-- SQL Server (LocalDB on Windows, or `mcr.microsoft.com/mssql/server` via Docker)
+- Docker (for the local MSSQL + Elasticsearch dev stack — see below)
 - An IDE: Visual Studio, Rider, or VS Code with the C# Dev Kit
+
+**Start the local dev stack**
+
+```bash
+docker compose up -d
+```
+
+Brings up SQL Server Express (`:1433`) and Elasticsearch (`:9200`),
+both with persistent named volumes. Optional Kibana is behind a
+profile:
+
+```bash
+docker compose --profile tools up -d kibana   # http://localhost:5601
+```
 
 **Build and test**
 
@@ -63,29 +82,66 @@ dotnet test
 
 **Apply database migrations**
 
-```bash
-dotnet tool install --global dotnet-ef
-dotnet ef database update --project src/Loom.Infrastructure --startup-project src/Loom.Web
-```
-
-**Seed sample data (optional, for local development)**
+The bootstrapper applies migrations on first `dotnet run`, but the
+seed tool also runs them and is the easiest way to populate the
+sample tree on a fresh DB:
 
 ```bash
 dotnet run --project tools/seed
 ```
 
-**Configure the Anthropic API key**
+To apply migrations without seeding:
 
-The Phase-1 kickoff workflow calls Anthropic for the discovery and decompose
-agent steps. Set the API key in user-secrets (recommended for dev) or in
-configuration:
+```bash
+dotnet tool install --global dotnet-ef
+dotnet ef database update --project src/Loom.Infrastructure --startup-project src/Loom.Web
+```
+
+**Configure agent runtime secrets**
+
+Loom registers two streaming agent runtimes side-by-side
+(see [ADR-0017](docs/adr/0017-foundry-agent-runtime.md) and
+[ADR-0014](docs/adr/0014-budget-circuit-breaker-and-engine-router.md)):
+
+- **Foundry** — Azure OpenAI Chat Completions on the team's France-Central
+  resource (`marketplace-prompt` deployment). Default `EnginePref` for new
+  workflow templates.
+- **Anthropic** — Anthropic Messages API. Kept registered so any workflow
+  that explicitly pins `EngineName.Anthropic` keeps working.
+
+The fastest path is the helper script, which wraps `dotnet user-secrets set`
+for the Loom.Web project and applies the team's current defaults. It prompts
+for the API key (never echoed) and writes the rest:
+
+```powershell
+# Windows / Visual Studio
+./scripts/Set-FoundrySecrets.ps1
+```
+
+```bash
+# bash / WSL / macOS
+./scripts/set-foundry-secrets.sh
+```
+
+Both scripts accept overrides for endpoint, deployment, API version, and
+default model — see the comments at the top of each. The keys written are:
+
+| Key | Default |
+|---|---|
+| `Foundry:Endpoint` | `https://artio-dev-fr-foundry.openai.azure.com` |
+| `Foundry:Deployment` | `marketplace-prompt` |
+| `Foundry:ApiVersion` | `2024-02-01` |
+| `Foundry:DefaultModel` | `gpt-5.4` |
+| `Foundry:ApiKey` | *prompted* |
+
+Verify with `dotnet user-secrets list --project src/Loom.Web`.
+
+The Anthropic runtime is optional but registered. If you need it during
+testing or have a workflow pinned to it, set its key the same way:
 
 ```bash
 dotnet user-secrets set "Anthropic:ApiKey" "sk-ant-..." --project src/Loom.Web
 ```
-
-The default model is `claude-opus-4-7`; override with `Anthropic:DefaultModel`
-in user-secrets or `appsettings.json`.
 
 **Run the web app**
 
@@ -127,7 +183,7 @@ Pre-alpha, working through the seven-phase plan in `.claude/plans/fix-the-build-
 
 - **Phases 1–3 (kernel + MCP + decompose/enrichment/notifications/replay)** — complete.
 - **Phase 4 (artifact versioning + soft locks + Inspector)** — foundation complete; Figma adapter + plugin deferred to 4b.
-- **Phase 5a (budget circuit breaker + multi-engine router + Agent Activity)** — complete; Foundry SDK + Claude Code Headless workspace runner deferred to 5b.
+- **Phase 5a (budget circuit breaker + multi-engine router + Agent Activity)** — complete; Foundry runtime now registered alongside Anthropic per [ADR-0017](docs/adr/0017-foundry-agent-runtime.md). Claude Code Headless workspace runner deferred to 5b.
 - **Phase 6a (memory search seam + memory-lookup workflow step)** — complete; Elasticsearch + indexer worker + global search box deferred to 6b.
 - **Phase 7a (Workflow Library + Detail)** — complete; editable Workflow Designer + multi-tenancy deferred to 7b.
 

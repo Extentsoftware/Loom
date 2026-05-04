@@ -90,4 +90,18 @@ internal static class ValueConverters
     public static readonly ValueConverter<RunId?, Guid?> NullableRunId =
         new(id => id.HasValue ? id.Value.Value : null,
             g => g.HasValue ? new RunId(g.Value) : null);
+
+    // SQLite-only converters. SQLite stores DateTimeOffset as TEXT and
+    // refuses to translate ORDER BY against it. Storing as UTC ticks
+    // gives an INTEGER column that orders correctly; round-trip loses
+    // the original offset (read-back is always UTC), which is fine for
+    // Loom's ordering / audit / elapsed-time use cases. MSSQL keeps
+    // native datetimeoffset semantics — see LoomDbContext.OnModelCreating.
+    public static readonly ValueConverter<DateTimeOffset, long> DateTimeOffsetToTicks =
+        new(v => v.UtcTicks,
+            v => new DateTimeOffset(v, TimeSpan.Zero));
+
+    public static readonly ValueConverter<DateTimeOffset?, long?> NullableDateTimeOffsetToTicks =
+        new(v => v.HasValue ? v.Value.UtcTicks : (long?)null,
+            v => v.HasValue ? new DateTimeOffset(v.Value, TimeSpan.Zero) : null);
 }

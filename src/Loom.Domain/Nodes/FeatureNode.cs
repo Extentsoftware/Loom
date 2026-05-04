@@ -126,6 +126,14 @@ public sealed class FeatureNode
         Touch(now);
     }
 
+    public void ReplaceConstraints(IEnumerable<Constraint> constraints, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(constraints);
+        _constraints.Clear();
+        _constraints.AddRange(constraints);
+        Touch(now);
+    }
+
     public void AddHypothesis(Hypothesis hypothesis, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(hypothesis);
@@ -133,10 +141,38 @@ public sealed class FeatureNode
         Touch(now);
     }
 
+    public void ReplaceHypotheses(IEnumerable<Hypothesis> hypotheses, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(hypotheses);
+        _hypotheses.Clear();
+        _hypotheses.AddRange(hypotheses);
+        Touch(now);
+    }
+
+    public void ReplaceOpenQuestions(IEnumerable<string> questions, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(questions);
+        _openQuestions.Clear();
+        foreach (var q in questions)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(q);
+            _openQuestions.Add(q.Trim());
+        }
+        Touch(now);
+    }
+
     public void AddOpenQuestion(string question, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(question);
         _openQuestions.Add(question.Trim());
+        Touch(now);
+    }
+
+    public void ReplaceStakeholders(IEnumerable<Stakeholder> stakeholders, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(stakeholders);
+        _stakeholders.Clear();
+        _stakeholders.AddRange(stakeholders);
         Touch(now);
     }
 

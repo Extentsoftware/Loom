@@ -54,6 +54,8 @@ public sealed class FakeProjectRepository : IProjectRepository
     public Task<Project?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
         Task.FromResult<Project?>(_byId.Values.FirstOrDefault(p => p.Slug.Value == slug));
     public Task<IReadOnlyList<Project>> ListAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<Project>>(_byId.Values.Where(p => !p.IsArchived).ToList());
+    public Task<IReadOnlyList<Project>> ListAllAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Project>>(_byId.Values.ToList());
 }
 

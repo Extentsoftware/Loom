@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentAssertions;
-using Loom.Agents.Anthropic;
+using Loom.Agents.Foundry;
 using Loom.Agents.InProc;
 using Loom.Application.Abstractions;
 using Loom.Application.Agents;
@@ -24,8 +24,10 @@ namespace Loom.Application.Tests.Integration;
 /// <summary>
 /// Phase-1 acceptance test. Exercises the kickoff path through the *real*
 /// application services (FeatureService / FragmentService / RunService /
-/// WorkflowEngine / AssembledPromptComposer / AnthropicAgentRuntime) with
-/// in-memory fake repositories and a stubbed Anthropic chat client.
+/// WorkflowEngine / AssembledPromptComposer / FoundryAgentRuntime) with
+/// in-memory fake repositories and a stubbed Foundry chat client. The
+/// kickoff workflow factory pins EngineName.Foundry, so the engine
+/// resolves the Foundry runtime via the router.
 ///
 /// EF Core round-trips are covered separately by Loom.Infrastructure.Tests
 /// against Testcontainers MSSQL — this test deliberately avoids the
@@ -65,13 +67,20 @@ public sealed class EndToEndKickoffTests
         var composer = new AssembledPromptComposer();
         var features = new FeatureService(projects, nodes, runs, events, uow, clock);
 
-        // Real Anthropic runtime over a stubbed chat client.
-        var stubbedChat = new StubbedAnthropicChatClient();
-        var anthropic = new AnthropicAgentRuntime(
+        // Real Foundry runtime over a stubbed chat client.
+        var stubbedChat = new StubbedFoundryChatClient();
+        var foundry = new FoundryAgentRuntime(
             stubbedChat,
-            Options.Create(new AnthropicOptions { ApiKey = "stub", DefaultModel = "claude-opus-4-7" }),
-            NullLogger<AnthropicAgentRuntime>.Instance);
-        var router = new DefaultAgentRouter([anthropic]);
+            Options.Create(new FoundryOptions
+            {
+                Endpoint = "https://example.openai.azure.com",
+                Deployment = "marketplace-prompt",
+                ApiVersion = "2024-02-01",
+                ApiKey = "stub",
+                DefaultModel = "gpt-5.4"
+            }),
+            NullLogger<FoundryAgentRuntime>.Instance);
+        var router = new DefaultAgentRouter([foundry]);
 
         var inProcSteps = new IInProcStep[] { new TranscriptNormalizeStep() };
 
@@ -138,7 +147,7 @@ public sealed class EndToEndKickoffTests
             .Should().ContainSingle().Which;
 
         // ── Act 3: PO accepts the decomposition ──────────────────────
-        // The stubbed Anthropic client returned a DecompositionProposal;
+        // The stubbed Foundry client returned a DecompositionProposal;
         // mirror what the PoGate page does — create the accepted children
         // and resolve the gate.
         await features.CreateChildNodeAsync(
@@ -157,34 +166,34 @@ public sealed class EndToEndKickoffTests
 
         runs.ById[decomposeRun.Id].State.Should().Be(RunState.Completed);
 
-        // Cost was recorded on the discovery run from the stubbed Anthropic
+        // Cost was recorded on the discovery run from the stubbed Foundry
         // usage events.
         runs.ById.Values
-            .Where(r => r.Engine == EngineName.Anthropic && r.State == RunState.Completed)
+            .Where(r => r.Engine == EngineName.Foundry && r.State == RunState.Completed)
             .Should().HaveCountGreaterThanOrEqualTo(2, "both agent runs should have completed cost-tracked");
     }
 
     /// <summary>
-    /// Stub IAnthropicChatClient that returns canned text: a DiscoveryObject
+    /// Stub IFoundryChatClient that returns canned text: a DiscoveryObject
     /// for the first call (the discovery step), a DecompositionProposal for
     /// the second (the decompose step). The runtime aggregates TextDelta
     /// events so the engine sees `output = body` at completion.
     /// </summary>
-    private sealed class StubbedAnthropicChatClient : IAnthropicChatClient
+    private sealed class StubbedFoundryChatClient : IFoundryChatClient
     {
         private int _calls;
 
-        public async IAsyncEnumerable<AnthropicStreamEvent> StreamAsync(
-            AnthropicRequest request,
+        public async IAsyncEnumerable<FoundryStreamEvent> StreamAsync(
+            FoundryRequest request,
             [EnumeratorCancellation] CancellationToken ct = default)
         {
             var call = Interlocked.Increment(ref _calls);
-            yield return new AnthropicStreamEvent.Started($"stub-{call}", request.Model);
+            yield return new FoundryStreamEvent.Started($"stub-{call}", "gpt-5.4");
 
             string body = call == 1 ? DiscoveryJson : DecompositionJson;
-            yield return new AnthropicStreamEvent.TextDelta(body);
-            yield return new AnthropicStreamEvent.Usage(InputTokens: 100, OutputTokens: 50);
-            yield return new AnthropicStreamEvent.Stopped("end_turn");
+            yield return new FoundryStreamEvent.TextDelta(body);
+            yield return new FoundryStreamEvent.Stopped("stop");
+            yield return new FoundryStreamEvent.Usage(InputTokens: 100, OutputTokens: 50);
             await Task.CompletedTask;
         }
 

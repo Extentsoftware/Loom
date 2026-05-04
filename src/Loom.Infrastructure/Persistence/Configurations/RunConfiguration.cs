@@ -25,16 +25,28 @@ internal sealed class RunConfiguration : IEntityTypeConfiguration<Run>
         b.Property(r => r.CompletedAt);
         b.Property(r => r.AssembledPromptId).HasConversion(ValueConverters.NullableAssembledPromptId);
 
-        b.OwnsOne(r => r.Budgets, x =>
+        // Budgets and Cost are inline value objects, not entities. EF
+        // Core 8+ provides `ComplexProperty` for exactly this use case:
+        // same column layout as OwnsOne, but no synthetic FK, no
+        // change-tracker entity entry, and no "is this dependent being
+        // moved to a new principal?" check. The previous OwnsOne mapping
+        // tripped that check on every second SaveChanges within one DI
+        // scope ("Run.Budgets#Budgets.RunId is part of a key and so
+        // cannot be modified") — that whole class of error goes away
+        // with complex properties.
+        b.ComplexProperty(r => r.Budgets, x =>
         {
+            x.IsRequired();
             x.Property(p => p.MaxInputTokens).HasColumnName("budgets_max_input_tokens");
             x.Property(p => p.MaxOutputTokens).HasColumnName("budgets_max_output_tokens");
             x.Property(p => p.MaxWallClock).HasColumnName("budgets_max_wall_clock");
             x.Property(p => p.MaxCostUsd).HasColumnName("budgets_max_cost_usd").HasPrecision(10, 4);
         });
 
-        b.OwnsOne(r => r.Cost, x =>
+        // Cost is optional (null at Queue, set on Complete/Fail).
+        b.ComplexProperty(r => r.Cost, x =>
         {
+            x.IsRequired(false);
             x.Property(p => p.Model).HasColumnName("cost_model").HasMaxLength(100);
             x.Property(p => p.Deployment).HasColumnName("cost_deployment").HasMaxLength(200);
             x.Property(p => p.InputTokens).HasColumnName("cost_input_tokens");

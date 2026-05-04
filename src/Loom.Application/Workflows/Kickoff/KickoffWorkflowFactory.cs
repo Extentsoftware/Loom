@@ -8,15 +8,20 @@ namespace Loom.Application.Workflows.Kickoff;
 /// <summary>
 /// Builds the v1 kickoff workflow. Three steps in order:
 ///   1. normalize    — InProc, Auto, takes "transcript" → "normalize.output"
-///   2. discovery    — Agent, Anthropic, gate=HumanPo, produces DiscoveryObject
-///   3. decompose    — Agent, Anthropic, gate=HumanPo, produces DecompositionProposal
+///   2. discovery    — Agent, Foundry, gate=HumanPo, produces DiscoveryObject
+///   3. decompose    — Agent, Foundry, gate=HumanPo, produces DecompositionProposal
 /// Phase 7's Workflow Designer will replace this code-as-data factory with
 /// a YAML-driven definition.
 /// </summary>
 public static class KickoffWorkflowFactory
 {
     public const string WorkflowKey = "kickoff";
-    public const int CurrentVersion = 1;
+    // v2 — switched discovery + decompose from EngineName.Anthropic to
+    // EngineName.Foundry per ADR-0017. Bumping the version makes the
+    // bootstrapper seed a fresh kickoff/v2 row alongside any existing
+    // v1 in the DB; in-flight runs against v1 keep working, new
+    // kickoffs use v2.
+    public const int CurrentVersion = 2;
 
     public const string NormalizeStepKey = "normalize";
     public const string DiscoveryStepKey = "discovery";
@@ -48,7 +53,7 @@ public static class KickoffWorkflowFactory
                 Key: DiscoveryStepKey,
                 Kind: WorkflowStepKind.Agent,
                 Gating: WorkflowStepGating.HumanPo,
-                EnginePref: EngineName.Anthropic,
+                EnginePref: EngineName.Foundry,
                 OutputSchemaName: "DiscoveryObject",
                 Budgets: defaultBudgets,
                 Selectors:
@@ -63,7 +68,7 @@ public static class KickoffWorkflowFactory
                 Key: DecomposeStepKey,
                 Kind: WorkflowStepKind.Agent,
                 Gating: WorkflowStepGating.HumanPo,
-                EnginePref: EngineName.Anthropic,
+                EnginePref: EngineName.Foundry,
                 OutputSchemaName: "DecompositionProposal",
                 Budgets: defaultBudgets,
                 Selectors:

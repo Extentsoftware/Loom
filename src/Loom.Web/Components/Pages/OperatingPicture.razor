@@ -32,9 +32,42 @@
     </p>
     <nav class="page-actions">
         <a href="/kickoff" class="btn-primary">+ Kickoff a new feature</a>
+        <button type="button" class="btn-secondary" @onclick="ToggleCreateProject">
+            @(_creating ? "Cancel" : "+ New project")
+        </button>
+        <button type="button" class="btn-secondary" @onclick="ToggleShowArchivedAsync">
+            @(_showArchived ? "Hide archived" : "Show archived")
+        </button>
         <a href="/fragments" class="btn-secondary">Fragments</a>
     </nav>
 </header>
+
+@if (_creating)
+{
+    <section class="ws-section">
+        <EditForm Model="_newProject" OnValidSubmit="CreateProjectAsync">
+            <div class="form-row">
+                <label>Slug</label>
+                <input @bind="_newProject.Slug" placeholder="acme-marketplace" required />
+            </div>
+            <div class="form-row">
+                <label>Name</label>
+                <input @bind="_newProject.Name" placeholder="Acme Marketplace" required />
+            </div>
+            <div class="form-row">
+                <label>Description (optional)</label>
+                <input @bind="_newProject.Description" placeholder="Short summary" />
+            </div>
+            @if (!string.IsNullOrEmpty(_createError))
+            {
+                <p class="error">@_createError</p>
+            }
+            <button type="submit" class="btn-primary" disabled="@_creatingBusy">
+                @(_creatingBusy ? "Creating…" : "Create project")
+            </button>
+        </EditForm>
+    </section>
+}
 
 @if (!_loaded)
 {
@@ -56,11 +89,42 @@ else
 {
     @foreach (var tree in _trees)
     {
-        <article class="tree-init">
+        var isArchived = _archivedById.TryGetValue(tree.ProjectId, out var arch) && arch;
+        <article class="tree-init" style="@(isArchived ? "opacity:.6;" : "")">
             <header class="init-head">
-                <span class="init-title">@tree.ProjectName</span>
+                @if (_renamingProjectId == tree.ProjectId)
+                {
+                    <span class="init-title">
+                        <input @bind="_projectNameDraft" @bind:event="oninput" @onkeydown="@(e => OnRenameProjectKey(e, tree.ProjectId))" />
+                        <button class="btn-link" @onclick="@(() => SaveRenameProjectAsync(tree.ProjectId))" disabled="@_renameProjectBusy" title="Save">✓</button>
+                        <button class="btn-link" @onclick="CancelRenameProject" title="Cancel">✕</button>
+                    </span>
+                }
+                else
+                {
+                    <span class="init-title">
+                        @tree.ProjectName
+                        @if (isArchived)
+                        {
+                            <span class="badge" style="margin-left:.5rem;">archived</span>
+                        }
+                        <button class="btn-link" title="Rename project" @onclick="@(() => StartRenameProject(tree.ProjectId, tree.ProjectName))" style="font-size:.8em; margin-left:.5rem;">✎</button>
+                        @if (isArchived)
+                        {
+                            <button class="btn-link" title="Restore" @onclick="@(() => UnarchiveProjectAsync(tree.ProjectId))" style="font-size:.8em; margin-left:.25rem;">↺</button>
+                        }
+                        else
+                        {
+                            <button class="btn-link" title="Archive project" @onclick="@(() => ArchiveProjectAsync(tree.ProjectId))" style="font-size:.8em; margin-left:.25rem;">🗄</button>
+                        }
+                    </span>
+                }
                 <span class="init-meta">@CountNodes(tree.Roots) nodes</span>
             </header>
+            @if (_renamingProjectId == tree.ProjectId && !string.IsNullOrEmpty(_renameProjectError))
+            {
+                <p class="error">@_renameProjectError</p>
+            }
             @if (tree.Roots.Count == 0)
             {
                 <p class="init-empty">No nodes yet.</p>
@@ -83,6 +147,68 @@ else
     private List<NodeTreeView> _trees = [];
     private int _totalNodes;
     private HubConnection? _hub;
+
+    private bool _creating;
+    private bool _creatingBusy;
+    private string? _createError;
+    private NewProjectForm _newProject = new();
+
+    private Guid? _renamingProjectId;
+    private string _projectNameDraft = string.Empty;
+    private bool _renameProjectBusy;
+    private string? _renameProjectError;
+
+    private bool _showArchived;
+    private Dictionary<Guid, bool> _archivedById = [];
+
+    private sealed class NewProjectForm
+    {
+        public string Slug { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+
+    private void ToggleCreateProject()
+    {
+        _creating = !_creating;
+        if (_creating)
+        {
+            _newProject = new NewProjectForm();
+            _createError = null;
+        }
+    }
+
+    private async Task CreateProjectAsync()
+    {
+        if (_creatingBusy)
+        {
+            return;
+        }
+        _creatingBusy = true;
+        _createError = null;
+        try
+        {
+            var slug = Loom.Domain.Common.Slug.From(_newProject.Slug.Trim());
+            await Features.CreateProjectAsync(
+                slug,
+                _newProject.Name.Trim(),
+                string.IsNullOrWhiteSpace(_newProject.Description) ? null : _newProject.Description.Trim());
+            _creating = false;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _createError = ex.Message;
+        }
+        catch (ArgumentException ex)
+        {
+            _createError = ex.Message;
+        }
+        finally
+        {
+            _creatingBusy = false;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -126,7 +252,10 @@ else
 
     private async Task LoadAsync()
     {
-        var projects = await Projects.ListAsync();
+        var projects = _showArchived
+            ? await Projects.ListAllAsync()
+            : await Projects.ListAsync();
+        _archivedById = projects.ToDictionary(p => p.Id, p => p.IsArchived);
         var trees = new List<NodeTreeView>(projects.Count);
         var total = 0;
         foreach (var project in projects)
@@ -139,6 +268,91 @@ else
         _totalNodes = total;
         _loaded = true;
         StateHasChanged();
+    }
+
+    private async Task ToggleShowArchivedAsync()
+    {
+        _showArchived = !_showArchived;
+        await LoadAsync();
+    }
+
+    private async Task ArchiveProjectAsync(Guid projectId)
+    {
+        try
+        {
+            await Features.ArchiveProjectAsync(projectId);
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException)
+        {
+            // Already archived — refresh and ignore.
+            await LoadAsync();
+        }
+    }
+
+    private async Task UnarchiveProjectAsync(Guid projectId)
+    {
+        try
+        {
+            await Features.UnarchiveProjectAsync(projectId);
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private void StartRenameProject(Guid projectId, string currentName)
+    {
+        _renamingProjectId = projectId;
+        _projectNameDraft = currentName;
+        _renameProjectError = null;
+    }
+
+    private void CancelRenameProject()
+    {
+        _renamingProjectId = null;
+        _renameProjectError = null;
+    }
+
+    private async Task OnRenameProjectKey(KeyboardEventArgs e, Guid projectId)
+    {
+        if (e.Key == "Enter")
+        {
+            await SaveRenameProjectAsync(projectId);
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelRenameProject();
+        }
+    }
+
+    private async Task SaveRenameProjectAsync(Guid projectId)
+    {
+        if (_renameProjectBusy) return;
+        var newName = (_projectNameDraft ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(newName))
+        {
+            _renameProjectError = "Name can't be empty.";
+            return;
+        }
+        _renameProjectBusy = true;
+        _renameProjectError = null;
+        try
+        {
+            await Features.RenameProjectAsync(projectId, newName);
+            _renamingProjectId = null;
+            await LoadAsync();
+        }
+        catch (Loom.Domain.Common.DomainException ex)
+        {
+            _renameProjectError = ex.Message;
+        }
+        finally
+        {
+            _renameProjectBusy = false;
+        }
     }
 
     private static int CountNodes(IReadOnlyList<NodeTreeRow> rows)

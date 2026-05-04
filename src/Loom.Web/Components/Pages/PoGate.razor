@@ -284,7 +284,7 @@ else
                     _targetNodeId.Value, slug, c.ParseType(), c.Title.Trim(), ownerId);
                 if (!string.IsNullOrWhiteSpace(c.Intent))
                 {
-                    await Features.SetIntentAsync(child.Id, c.Intent);
+                    await Features.SetIntentAsync(child.Id, c.Intent, CurrentUser.GetUserId());
                 }
             }
 
@@ -346,17 +346,22 @@ else
         public string OpenQuestionsText { get; set; } = string.Empty;
         public string StakeholdersText { get; set; } = string.Empty;
 
+        // The agent's JSON may omit any of the collection fields when the
+        // transcript is thin (e.g. "make a discount engine" has no
+        // hypotheses or stakeholders). System.Text.Json sets the property
+        // to null in that case rather than an empty list, so guard each
+        // access here.
         public static DiscoveryEditModel From(DiscoveryObject d) => new()
         {
             Title = d.Title,
             Intent = d.Intent,
             OutcomesText = string.Join("\n",
-                d.Outcomes.Select(o => string.IsNullOrWhiteSpace(o.MetricHint) ? o.Statement : $"{o.Statement} | {o.MetricHint}")),
+                (d.Outcomes ?? []).Select(o => string.IsNullOrWhiteSpace(o.MetricHint) ? o.Statement : $"{o.Statement} | {o.MetricHint}")),
             HypothesesText = string.Join("\n",
-                d.Hypotheses.Select(h => $"{h.If} | {h.Then} | {h.Because}")),
-            OpenQuestionsText = string.Join("\n", d.OpenQuestions),
+                (d.Hypotheses ?? []).Select(h => $"{h.If} | {h.Then} | {h.Because}")),
+            OpenQuestionsText = string.Join("\n", d.OpenQuestions ?? []),
             StakeholdersText = string.Join("\n",
-                d.Stakeholders.Select(s => string.IsNullOrWhiteSpace(s.Interest) ? $"{s.Name} | {s.Role}" : $"{s.Name} | {s.Role} | {s.Interest}"))
+                (d.Stakeholders ?? []).Select(s => string.IsNullOrWhiteSpace(s.Interest) ? $"{s.Name} | {s.Role}" : $"{s.Name} | {s.Role} | {s.Interest}"))
         };
 
         public DiscoveryAcceptance ToAcceptance()
@@ -407,7 +412,7 @@ else
 
         public static DecomposeEditModel From(DecompositionProposal p) => new()
         {
-            Children = [.. p.Children.Select(c => new ChildEdit
+            Children = [.. (p.Children ?? []).Select(c => new ChildEdit
             {
                 Accepted = true,
                 Slug = c.Slug,

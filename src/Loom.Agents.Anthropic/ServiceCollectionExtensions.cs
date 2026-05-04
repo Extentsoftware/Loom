@@ -8,10 +8,14 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the Anthropic runtime: options bound to the "Anthropic"
-    /// section, an HttpClient configured with sensible timeouts, the chat
-    /// client seam, and the IAgentRuntime implementation. The runtime is
-    /// added as IAgentRuntime (multi-registration) so the DefaultAgentRouter
-    /// in Loom.Application sees it.
+    /// section, an HttpClient configured with sensible timeouts, and the
+    /// chat client seam. The IAgentRuntime registration is **conditional**
+    /// on Anthropic:ApiKey being configured — without a key, the runtime
+    /// is silently absent from the multi-engine router. A workflow that
+    /// pins EngineName.Anthropic on a host with no key fails fast at the
+    /// router with a clear "no IAgentRuntime is registered" message,
+    /// rather than throwing later from inside the chat client. Foundry
+    /// (ADR-0017) is the default; Anthropic is opt-in via configuration.
     /// </summary>
     public static IServiceCollection AddAnthropicAgentRuntime(
         this IServiceCollection services,
@@ -31,7 +35,12 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromMinutes(10);
         });
 
-        services.AddSingleton<IAgentRuntime, AnthropicAgentRuntime>();
+        var apiKey = configuration.GetSection(AnthropicOptions.SectionName)["ApiKey"];
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            services.AddSingleton<IAgentRuntime, AnthropicAgentRuntime>();
+        }
+
         return services;
     }
 }

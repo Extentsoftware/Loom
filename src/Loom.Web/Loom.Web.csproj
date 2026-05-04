@@ -11,6 +11,7 @@
     <ProjectReference Include="..\Loom.Domain\Loom.Domain.csproj" />
     <ProjectReference Include="..\Loom.Infrastructure\Loom.Infrastructure.csproj" />
     <ProjectReference Include="..\Loom.Agents.Anthropic\Loom.Agents.Anthropic.csproj" />
+    <ProjectReference Include="..\Loom.Agents.Foundry\Loom.Agents.Foundry.csproj" />
     <ProjectReference Include="..\Loom.Agents.InProc\Loom.Agents.InProc.csproj" />
     <ProjectReference Include="..\Loom.Mcp\Loom.Mcp.csproj" />
     <ProjectReference Include="..\Loom.Integrations\Loom.Integrations.csproj" />
