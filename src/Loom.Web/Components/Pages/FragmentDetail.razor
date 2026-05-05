@@ -7,7 +7,7 @@
 
 @page "/fragments/{FragmentId:guid}"
 @attribute [Authorize]
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IFragmentService FragmentSvc
 @inject IFragmentRepository Fragments

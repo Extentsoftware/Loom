@@ -22,7 +22,11 @@ internal sealed class ArtifactConfiguration : IEntityTypeConfiguration<Artifact>
         b.OwnsOne(a => a.Canonical, x =>
         {
             x.Property(p => p.Store).HasColumnName("canonical_store").HasConversion<int>().IsRequired();
-            x.Property(p => p.ExternalId).HasColumnName("canonical_external_id").HasMaxLength(500).IsRequired();
+            // No length cap: hub-native artifacts (acceptance criteria, risks,
+            // wireframe payloads) embed their full JSON body here. External-
+            // store artifacts still use a short identifier and pay no cost
+            // for the wider column.
+            x.Property(p => p.ExternalId).HasColumnName("canonical_external_id").HasColumnType("nvarchar(max)").IsRequired();
             x.Property(p => p.Url).HasColumnName("canonical_url").HasMaxLength(2000);
         });
 

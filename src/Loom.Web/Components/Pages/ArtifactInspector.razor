@@ -9,7 +9,7 @@
 
 @page "/artifacts/{ArtifactId:guid}"
 @attribute [Authorize]
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IArtifactRepository ArtifactRepo
 @inject IArtifactService Artifacts
@@ -38,13 +38,47 @@ else
         <h1 class="page-title">@_artifact.Title</h1>
         <p class="page-meta">
             Kind: <strong>@_artifact.Kind</strong>
-            · Canonical: <strong>@_artifact.Canonical.Store</strong> / <code>@_artifact.Canonical.ExternalId</code>
+            · Canonical: <strong>@_artifact.Canonical.Store</strong>
+            @if (_artifact.Canonical.Store != Loom.Domain.Artifacts.CanonicalStore.HubNative)
+            {
+                <span> / <code>@TruncateForHeader(_artifact.Canonical.ExternalId)</code></span>
+                @if (!string.IsNullOrWhiteSpace(_artifact.Canonical.Url))
+                {
+                    <span> · <a href="@_artifact.Canonical.Url" target="_blank" rel="noopener">open in @_artifact.Canonical.Store</a></span>
+                }
+            }
             @if (_artifact.LastSyncedAt is not null)
             {
                 <span> · Last synced @_artifact.LastSyncedAt.Value.ToString("u")</span>
             }
         </p>
     </header>
+
+    @* Per-kind body renderer. Only fires for hub-native artifacts (where
+       the canonical pointer's ExternalId actually carries the body). For
+       external stores the link in the header is the entry point. *@
+    @if (_artifact.Canonical.Store == Loom.Domain.Artifacts.CanonicalStore.HubNative
+         && !string.IsNullOrWhiteSpace(_artifact.Canonical.ExternalId))
+    {
+        <section class="ws-section">
+            <h2>Content</h2>
+            @switch (_artifact.Kind)
+            {
+                case Loom.Domain.Artifacts.ArtifactKind.Wireframe:
+                    @RenderWireframe(_artifact.Canonical.ExternalId)
+                    break;
+                case Loom.Domain.Artifacts.ArtifactKind.Criteria:
+                    @RenderCriteria(_artifact.Canonical.ExternalId)
+                    break;
+                case Loom.Domain.Artifacts.ArtifactKind.Risks:
+                    @RenderRisks(_artifact.Canonical.ExternalId)
+                    break;
+                default:
+                    <pre class="prompt-block">@_artifact.Canonical.ExternalId</pre>
+                    break;
+            }
+        </section>
+    }
 
     <section class="ws-section">
         <h2>Lock</h2>
@@ -190,6 +224,189 @@ else
 }
 
 @code {
+    private static string TruncateForHeader(string s) =>
+        s.Length <= 80 ? s : s[..77] + "…";
+
+    private RenderFragment RenderWireframe(string body) => builder =>
+    {
+        var (description, html) = TryParseWireframe(body);
+        if (description is not null)
+        {
+            builder.OpenElement(0, "p");
+            builder.AddAttribute(1, "class", "muted");
+            builder.AddContent(2, description);
+            builder.CloseElement();
+        }
+        if (!string.IsNullOrWhiteSpace(html))
+        {
+            // Sandboxed iframe with srcdoc — isolated origin, no scripts,
+            // no top-nav. Width/height are best-effort; future iteration
+            // can persist them on the artifact.
+            builder.OpenElement(10, "iframe");
+            builder.AddAttribute(11, "srcdoc", html);
+            builder.AddAttribute(12, "sandbox", "");
+            builder.AddAttribute(13, "style", "width:100%; min-height:600px; border:1px solid var(--border, #333); background:#fff;");
+            builder.AddAttribute(14, "title", "Wireframe preview");
+            builder.CloseElement();
+        }
+        else if (description is null)
+        {
+            // Bad JSON — fall back to raw text so the body isn't lost.
+            builder.OpenElement(20, "pre");
+            builder.AddAttribute(21, "class", "prompt-block");
+            builder.AddContent(22, body);
+            builder.CloseElement();
+        }
+    };
+
+    private RenderFragment RenderCriteria(string body) => builder =>
+    {
+        var items = TryParseCriteria(body);
+        if (items is null || items.Count == 0)
+        {
+            builder.OpenElement(0, "pre");
+            builder.AddAttribute(1, "class", "prompt-block");
+            builder.AddContent(2, body);
+            builder.CloseElement();
+            return;
+        }
+        builder.OpenElement(10, "ul");
+        builder.AddAttribute(11, "class", "criteria-list");
+        var seq = 12;
+        foreach (var c in items)
+        {
+            builder.OpenElement(seq++, "li");
+            builder.OpenElement(seq++, "div");
+            builder.AddContent(seq++, c.Statement);
+            if (c.Measurable)
+            {
+                builder.OpenElement(seq++, "span");
+                builder.AddAttribute(seq++, "class", "badge");
+                builder.AddAttribute(seq++, "style", "margin-left:.5rem;");
+                builder.AddContent(seq++, "measurable");
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+            if (!string.IsNullOrWhiteSpace(c.MetricHint))
+            {
+                builder.OpenElement(seq++, "div");
+                builder.AddAttribute(seq++, "class", "muted");
+                builder.AddContent(seq++, c.MetricHint);
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderRisks(string body) => builder =>
+    {
+        var items = TryParseRisks(body);
+        if (items is null || items.Count == 0)
+        {
+            builder.OpenElement(0, "pre");
+            builder.AddAttribute(1, "class", "prompt-block");
+            builder.AddContent(2, body);
+            builder.CloseElement();
+            return;
+        }
+        builder.OpenElement(10, "table");
+        builder.AddAttribute(11, "class", "ws-table");
+        builder.OpenElement(12, "thead");
+        builder.OpenElement(13, "tr");
+        foreach (var h in new[] { "Risk", "Likelihood", "Impact", "Mitigation" })
+        {
+            builder.OpenElement(14, "th");
+            builder.AddContent(15, h);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.OpenElement(20, "tbody");
+        var seq = 21;
+        foreach (var r in items)
+        {
+            builder.OpenElement(seq++, "tr");
+            foreach (var v in new[] { r.Risk, r.Likelihood, r.Impact, r.Mitigation })
+            {
+                builder.OpenElement(seq++, "td");
+                builder.AddContent(seq++, v);
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private static (string? Description, string? Html) TryParseWireframe(string body)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            string? d = root.TryGetProperty("description", out var dp) && dp.ValueKind == System.Text.Json.JsonValueKind.String ? dp.GetString() : null;
+            string? h = root.TryGetProperty("html", out var hp) && hp.ValueKind == System.Text.Json.JsonValueKind.String ? hp.GetString() : null;
+            return (d, h);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return (null, null);
+        }
+    }
+
+    private sealed record CriteriaItem(string Statement, string? MetricHint, bool Measurable);
+    private static List<CriteriaItem>? TryParseCriteria(string body)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            // Tolerate either a top-level array or a wrapper {criteria: [...]}.
+            var arr = root.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? root
+                : root.TryGetProperty("criteria", out var c) ? c : default;
+            if (arr.ValueKind != System.Text.Json.JsonValueKind.Array) return null;
+            var list = new List<CriteriaItem>();
+            foreach (var el in arr.EnumerateArray())
+            {
+                var s = el.TryGetProperty("statement", out var sp) && sp.ValueKind == System.Text.Json.JsonValueKind.String ? sp.GetString() : null;
+                if (string.IsNullOrWhiteSpace(s)) continue;
+                var m = el.TryGetProperty("metric_hint", out var mp) && mp.ValueKind == System.Text.Json.JsonValueKind.String ? mp.GetString() : null;
+                var meas = el.TryGetProperty("measurable", out var mep) && mep.ValueKind == System.Text.Json.JsonValueKind.True;
+                list.Add(new CriteriaItem(s!, m, meas));
+            }
+            return list;
+        }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+
+    private sealed record RiskItem(string Risk, string Likelihood, string Impact, string Mitigation);
+    private static List<RiskItem>? TryParseRisks(string body)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            var arr = root.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? root
+                : root.TryGetProperty("risks", out var r) ? r : default;
+            if (arr.ValueKind != System.Text.Json.JsonValueKind.Array) return null;
+            var list = new List<RiskItem>();
+            foreach (var el in arr.EnumerateArray())
+            {
+                string Get(string name) =>
+                    el.TryGetProperty(name, out var p) && p.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? (p.GetString() ?? string.Empty) : string.Empty;
+                var risk = Get("risk");
+                if (string.IsNullOrWhiteSpace(risk)) continue;
+                list.Add(new RiskItem(risk, Get("likelihood"), Get("impact"), Get("mitigation")));
+            }
+            return list;
+        }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+
     [Parameter] public Guid ArtifactId { get; set; }
 
     private bool _loaded;

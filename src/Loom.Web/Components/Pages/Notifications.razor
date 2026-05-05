@@ -12,7 +12,7 @@
 @inject INotificationFeed Feed
 @inject CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 <h1 class="page-title">Notifications</h1>
 

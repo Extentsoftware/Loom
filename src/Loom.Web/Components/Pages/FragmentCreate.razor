@@ -7,7 +7,7 @@
 
 @page "/fragments/new"
 @attribute [Authorize]
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IFragmentService FragmentSvc
 @inject Loom.Web.Services.CurrentUserAccessor CurrentUser

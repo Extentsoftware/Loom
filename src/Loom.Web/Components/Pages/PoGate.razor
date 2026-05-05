@@ -16,7 +16,7 @@
 @page "/runs/{RunId:guid}/gate"
 @attribute [Authorize]
 @implements IAsyncDisposable
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IRunRepository Runs
 @inject IRunEventRepository RunEvents

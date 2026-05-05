@@ -11,7 +11,7 @@
 
 @page "/kickoff"
 @attribute [Authorize]
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IFeatureService Features
 @inject IProjectRepository Projects

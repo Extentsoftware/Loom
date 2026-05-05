@@ -42,6 +42,12 @@ public sealed class AssembledPromptComposer : IAssembledPromptComposer
 
         AppendNodeContext(systemBuilder, nodeContext);
 
+        // If the step declares an OutputSchemaName the runtime forces JSON
+        // mode, but the agent still needs to know the *shape* of that JSON.
+        // Append a known-schema instruction so we don't rely on the
+        // selected fragments happening to teach the right shape.
+        AppendOutputSchema(systemBuilder, workflowStep.OutputSchemaName);
+
         var messages = new List<AssembledPromptMessage>();
         foreach (var (key, value) in inputs)
         {
@@ -118,6 +124,73 @@ public sealed class AssembledPromptComposer : IAssembledPromptComposer
                 sb.Append("  - ").AppendLine(q);
             }
         }
+        sb.AppendLine();
+    }
+
+    private static void AppendOutputSchema(StringBuilder sb, string? schemaName)
+    {
+        if (string.IsNullOrWhiteSpace(schemaName))
+        {
+            return;
+        }
+        var instruction = schemaName switch
+        {
+            "Wireframe" =>
+                """
+                Output strict JSON matching the Wireframe schema EXACTLY:
+
+                {
+                  "description": "<one-paragraph summary of what the wireframe shows and why>",
+                  "html": "<self-contained HTML document. Inline CSS via a <style> block. No external resources, no scripts, no images. Use semantic tags (header/main/section/nav/article/footer) and a clean grid; the goal is a low-fidelity layout reviewers can critique.>"
+                }
+
+                Hard rules:
+                - Top-level JSON object with exactly the two string properties above.
+                - Do NOT wrap the JSON in markdown fences.
+                - The html property must contain a complete <html><head><style>…</style></head><body>…</body></html> document.
+                - Keep the wireframe greyscale + monospace; no hero imagery, no real product copy, no chrome that pretends to be a finished product.
+                """,
+            "AcceptanceCriteria" =>
+                """
+                Output strict JSON matching the AcceptanceCriteria schema EXACTLY:
+
+                [
+                  { "statement": "<scenario in given/when/then form, single sentence>",
+                    "metric_hint": "<optional measurable signal, or null>",
+                    "measurable": true | false }
+                ]
+
+                Hard rules:
+                - Top-level JSON array (no wrapper object).
+                - 3–8 items typical; never zero.
+                - Do NOT wrap the JSON in markdown fences.
+                """,
+            "RiskRegister" =>
+                """
+                Output strict JSON matching the RiskRegister schema EXACTLY:
+
+                [
+                  { "risk":       "<one-sentence statement of what could go wrong>",
+                    "likelihood": "low" | "medium" | "high",
+                    "impact":     "low" | "medium" | "high",
+                    "mitigation": "<one-sentence concrete countermeasure>" }
+                ]
+
+                Hard rules:
+                - Top-level JSON array (no wrapper object).
+                - Likelihood and impact must be one of the three string values above (lowercase).
+                - 3–8 items typical.
+                - Do NOT wrap the JSON in markdown fences.
+                """,
+            _ => null
+        };
+        if (instruction is null)
+        {
+            return;
+        }
+        sb.AppendLine("## Required output shape");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"<!-- schema: {schemaName} -->");
+        sb.AppendLine(instruction);
         sb.AppendLine();
     }
 }

@@ -198,6 +198,19 @@ public sealed class Artifact
     }
 
     /// <summary>
+    /// Replace the canonical pointer. Used by step-output projectors when
+    /// re-running an agent step that produces a fresh body (e.g. a second
+    /// wireframing run after the first). The version chain is independent —
+    /// publishing a new version is a separate operation.
+    /// </summary>
+    public void UpdateCanonical(CanonicalPointer canonical, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(canonical);
+        Canonical = canonical;
+        UpdatedAt = now;
+    }
+
+    /// <summary>
     /// Append a new version. If the artifact is locked by a *different* user
     /// the call is rejected; the caller is expected to acquire the lock
     /// first. Versions number from 1 monotonically.

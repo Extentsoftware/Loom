@@ -11,7 +11,7 @@
 
 @page "/workflows"
 @attribute [Authorize]
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IWorkflowRepository Workflows
 

@@ -8,7 +8,7 @@
 @page "/"
 @attribute [Authorize]
 @implements IAsyncDisposable
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IFeatureService Features
 @inject IProjectRepository Projects
@@ -120,6 +120,7 @@ else
                     </span>
                 }
                 <span class="init-meta">@CountNodes(tree.Roots) nodes</span>
+                <a class="btn-link" href="@($"/projects/{tree.ProjectId:D}/dag")" style="margin-left:.5rem;" title="Project DAG view">graph →</a>
             </header>
             @if (_renamingProjectId == tree.ProjectId && !string.IsNullOrEmpty(_renameProjectError))
             {

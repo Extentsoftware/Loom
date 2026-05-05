@@ -45,5 +45,9 @@ public sealed class WireframeProjector(
                 canonical: pointer,
                 ct);
         }
+        else
+        {
+            await artifactService.UpdateCanonicalAsync(match.Id, pointer, ct);
+        }
     }
 }

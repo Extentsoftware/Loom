@@ -46,10 +46,10 @@ public sealed class AcceptanceCriteriaProjector(
                 canonical: pointer,
                 ct);
         }
-        // Update path is intentionally skipped for the skinny cut — the
-        // domain doesn't expose a "replace canonical" mutator yet, and
-        // the most recent run's output is always discoverable from the
-        // run's transcript. A future iteration adds a versioned update.
+        else
+        {
+            await artifactService.UpdateCanonicalAsync(match.Id, pointer, ct);
+        }
     }
 }
 
@@ -81,6 +81,10 @@ public sealed class RiskRegisterProjector(
                 title: "Risk register",
                 canonical: pointer,
                 ct);
+        }
+        else
+        {
+            await artifactService.UpdateCanonicalAsync(match.Id, pointer, ct);
         }
     }
 }

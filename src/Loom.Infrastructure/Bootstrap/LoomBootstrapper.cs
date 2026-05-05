@@ -141,50 +141,45 @@ public sealed class LoomBootstrapper(
         var workflows = sp.GetRequiredService<IWorkflowRepository>();
         var uow = sp.GetRequiredService<IUnitOfWork>();
 
-        var existing = await workflows.GetByKeyAsync(
-            Slug.From(KickoffWorkflowFactory.WorkflowKey),
+        // Each seed is independent — earlier versions short-circuited as soon
+        // as the kickoff row existed, which left enrichment / wireframing
+        // unseeded on any subsequent restart.
+        await SeedIfMissingAsync(workflows, uow,
+            KickoffWorkflowFactory.WorkflowKey,
             KickoffWorkflowFactory.CurrentVersion,
+            () => KickoffWorkflowFactory.Build(clock.UtcNow),
             ct);
+
+        await SeedIfMissingAsync(workflows, uow,
+            Application.Workflows.Enrichment.EnrichmentWorkflowFactory.WorkflowKey,
+            Application.Workflows.Enrichment.EnrichmentWorkflowFactory.CurrentVersion,
+            () => Application.Workflows.Enrichment.EnrichmentWorkflowFactory.Build(clock.UtcNow),
+            ct);
+
+        await SeedIfMissingAsync(workflows, uow,
+            Application.Workflows.Wireframing.WireframingWorkflowFactory.WorkflowKey,
+            Application.Workflows.Wireframing.WireframingWorkflowFactory.CurrentVersion,
+            () => Application.Workflows.Wireframing.WireframingWorkflowFactory.Build(clock.UtcNow),
+            ct);
+    }
+
+    private async Task SeedIfMissingAsync(
+        IWorkflowRepository workflows,
+        IUnitOfWork uow,
+        string key,
+        int version,
+        Func<Loom.Domain.Workflows.Workflow> factory,
+        CancellationToken ct)
+    {
+        var existing = await workflows.GetByKeyAsync(Slug.From(key), version, ct);
         if (existing is not null)
         {
             return;
         }
-
-        var workflow = KickoffWorkflowFactory.Build(clock.UtcNow);
+        var workflow = factory();
         await workflows.AddAsync(workflow, ct);
         await uow.SaveChangesAsync(ct);
-        BootstrapperLog.SeededWorkflow(logger, KickoffWorkflowFactory.WorkflowKey, KickoffWorkflowFactory.CurrentVersion);
-
-        // Phase-3: also seed the per-node enrichment workflow.
-        var existingEnrichment = await workflows.GetByKeyAsync(
-            Slug.From(Application.Workflows.Enrichment.EnrichmentWorkflowFactory.WorkflowKey),
-            Application.Workflows.Enrichment.EnrichmentWorkflowFactory.CurrentVersion,
-            ct);
-        if (existingEnrichment is null)
-        {
-            var enrichment = Application.Workflows.Enrichment.EnrichmentWorkflowFactory.Build(clock.UtcNow);
-            await workflows.AddAsync(enrichment, ct);
-            await uow.SaveChangesAsync(ct);
-            BootstrapperLog.SeededWorkflow(logger,
-                Application.Workflows.Enrichment.EnrichmentWorkflowFactory.WorkflowKey,
-                Application.Workflows.Enrichment.EnrichmentWorkflowFactory.CurrentVersion);
-        }
-
-        // Phase-4 (skinny): seed the wireframing workflow. Creates a draft
-        // wireframe artifact and pauses at a UX-gated review.
-        var existingWireframing = await workflows.GetByKeyAsync(
-            Slug.From(Application.Workflows.Wireframing.WireframingWorkflowFactory.WorkflowKey),
-            Application.Workflows.Wireframing.WireframingWorkflowFactory.CurrentVersion,
-            ct);
-        if (existingWireframing is null)
-        {
-            var wireframing = Application.Workflows.Wireframing.WireframingWorkflowFactory.Build(clock.UtcNow);
-            await workflows.AddAsync(wireframing, ct);
-            await uow.SaveChangesAsync(ct);
-            BootstrapperLog.SeededWorkflow(logger,
-                Application.Workflows.Wireframing.WireframingWorkflowFactory.WorkflowKey,
-                Application.Workflows.Wireframing.WireframingWorkflowFactory.CurrentVersion);
-        }
+        BootstrapperLog.SeededWorkflow(logger, key, version);
     }
 }
 

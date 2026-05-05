@@ -25,6 +25,16 @@ public sealed class ArtifactService(
         return artifact;
     }
 
+    public async Task UpdateCanonicalAsync(
+        ArtifactId artifactId,
+        CanonicalPointer canonical,
+        CancellationToken ct = default)
+    {
+        var artifact = await GetOrThrow(artifactId, ct);
+        artifact.UpdateCanonical(canonical, clock.UtcNow);
+        await uow.SaveChangesAsync(ct);
+    }
+
     public async Task<ArtifactVersion> PublishVersionAsync(
         ArtifactId artifactId,
         Author author,

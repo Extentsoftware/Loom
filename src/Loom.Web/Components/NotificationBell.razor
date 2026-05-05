@@ -12,11 +12,11 @@
 @using Loom.Domain.Notifications
 @using Microsoft.AspNetCore.SignalR.Client
 @using Loom.Web.Services
-@inject INotificationFeed Feed
+@inject IServiceScopeFactory ScopeFactory
 @inject CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
 @implements IAsyncDisposable
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 <div class="bell @(_open ? "bell-open" : "")">
     <button class="bell-button" @onclick="Toggle" aria-label="Notifications">
@@ -68,9 +68,22 @@
     private HubConnection? _hub;
     private Guid _userId;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
+        // Resolve the user id synchronously; the DB-backed feed fetch and
+        // the SignalR connection are deferred to OnAfterRenderAsync so
+        // they don't race the page's own prerender against the shared
+        // request-scoped DbContext.
         _userId = CurrentUser.GetUserId();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
         await RefreshAsync();
 
         _hub = new HubConnectionBuilder()
@@ -92,10 +105,17 @@
         }
     }
 
+    // Each call gets its own DI scope so the bell never shares a
+    // LoomDbContext with the page that's currently rendering. Without
+    // this the bell's RefreshAsync (driven by SignalR pushes) races the
+    // page's own DB load on the circuit-scoped context.
     private async Task RefreshAsync()
     {
-        _unreadCount = await Feed.UnreadCountAsync(_userId);
-        var recent = await Feed.ListRecentAsync(_userId, take: 10);
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var feed = scope.ServiceProvider.GetRequiredService<INotificationFeed>();
+
+        _unreadCount = await feed.UnreadCountAsync(_userId);
+        var recent = await feed.ListRecentAsync(_userId, take: 10);
         _recent.Clear();
         _recent.AddRange(recent);
         StateHasChanged();
@@ -112,7 +132,11 @@
 
     private async Task OpenAsync(Notification n)
     {
-        await Feed.MarkReadAsync(n.Id, _userId);
+        await using (var scope = ScopeFactory.CreateAsyncScope())
+        {
+            var feed = scope.ServiceProvider.GetRequiredService<INotificationFeed>();
+            await feed.MarkReadAsync(n.Id, _userId);
+        }
         await RefreshAsync();
         if (!string.IsNullOrWhiteSpace(n.DeepLink))
         {
@@ -122,7 +146,11 @@
 
     private async Task MarkAllReadAsync()
     {
-        await Feed.MarkAllReadAsync(_userId);
+        await using (var scope = ScopeFactory.CreateAsyncScope())
+        {
+            var feed = scope.ServiceProvider.GetRequiredService<INotificationFeed>();
+            await feed.MarkAllReadAsync(_userId);
+        }
         await RefreshAsync();
     }
 

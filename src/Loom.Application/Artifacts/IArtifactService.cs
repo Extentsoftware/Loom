@@ -18,6 +18,15 @@ public interface IArtifactService
         CanonicalPointer canonical,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Replace the canonical pointer of an existing artifact. Used when a
+    /// step-output projector re-runs and the body needs refreshing.
+    /// </summary>
+    Task UpdateCanonicalAsync(
+        ArtifactId artifactId,
+        CanonicalPointer canonical,
+        CancellationToken ct = default);
+
     Task<ArtifactVersion> PublishVersionAsync(
         ArtifactId artifactId,
         Author author,

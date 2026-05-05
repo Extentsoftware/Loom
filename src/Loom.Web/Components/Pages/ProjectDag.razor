@@ -1,0 +1,72 @@
+@*
+    Project DAG dashboard. Renders all nodes in a project as a graph with
+    parent → child edges, phase-coloured nodes, and run-status badges.
+    Clicking a node navigates to its workspace.
+
+    Layout / interactivity is delegated to /js/dag.js (cytoscape +
+    cytoscape-dagre via CDN). The Razor side just hosts the container
+    div and kicks off the JS module.
+*@
+
+@page "/projects/{ProjectId:guid}/dag"
+@attribute [Authorize]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using Loom.Application.Abstractions
+@inject IProjectRepository Projects
+@inject IJSRuntime JS
+
+<PageTitle>@(_projectName ?? "Project") DAG · Loom</PageTitle>
+
+<header class="page-head">
+    <p class="page-meta"><a href="/">← Operating Picture</a></p>
+    <h1 class="page-title">@(_projectName ?? "Project") · graph</h1>
+    <p class="page-meta">
+        Phase legend:
+        <span class="dag-legend" style="background:#7aa2f7"></span>Discovery
+        <span class="dag-legend" style="background:#bb9af7"></span>Enrich
+        <span class="dag-legend" style="background:#9ece6a"></span>Build
+        <span class="dag-legend" style="background:#e0af68"></span>Test
+        <span class="dag-legend" style="background:#73daca"></span>Done
+        <span class="dag-legend" style="background:#565f89"></span>Archived
+        · ⏸ paused · ▶ active · ⚠ failed
+    </p>
+</header>
+
+<div id="loom-dag" style="width:100%; height:78vh; border:1px solid #1f2335; border-radius:6px;"></div>
+
+<style>
+    .dag-legend {
+        display:inline-block;
+        width:.8rem;
+        height:.8rem;
+        border-radius:50%;
+        margin-right:.25rem;
+        margin-left:.5rem;
+        vertical-align:middle;
+    }
+</style>
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private string? _projectName;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var project = await Projects.GetAsync(ProjectId);
+        if (project is not null)
+        {
+            _projectName = project.Name;
+            StateHasChanged();
+        }
+
+        // Import the module then call render. Keeping the module side
+        // free of <script> tag boilerplate so it's a normal ES module
+        // that browsers cache properly.
+        await JS.InvokeVoidAsync("import", "/js/dag.js");
+        await JS.InvokeVoidAsync("LoomDag.render", "loom-dag", $"/api/projects/{ProjectId:D}/dag");
+    }
+}

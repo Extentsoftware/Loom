@@ -15,7 +15,7 @@
 @inject ISubscriptionService Subs
 @inject IFeatureNodeRepository Nodes
 @inject CurrentUserAccessor CurrentUser
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 <h1 class="page-title">Notification subscriptions</h1>
 

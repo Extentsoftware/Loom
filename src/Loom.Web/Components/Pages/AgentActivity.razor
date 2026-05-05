@@ -10,7 +10,7 @@
 @page "/activity"
 @attribute [Authorize]
 @implements IDisposable
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IRunRepository Runs
 @inject IProjectBudgetRepository BudgetRepo

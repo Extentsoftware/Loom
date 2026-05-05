@@ -7,7 +7,7 @@
 
 @page "/workflows/{WorkflowId:guid}"
 @attribute [Authorize]
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IWorkflowRepository Workflows
 

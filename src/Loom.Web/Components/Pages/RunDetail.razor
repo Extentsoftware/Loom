@@ -11,7 +11,7 @@
 
 @page "/runs/{RunId:guid}"
 @attribute [Authorize]
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @inject IRunRepository Runs
 @inject IRunEventRepository RunEvents
