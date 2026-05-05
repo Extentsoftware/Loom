@@ -95,7 +95,8 @@ public partial class Initial : Migration
             columns: table => new
             {
                 node_id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                ordinal = table.Column<int>(type: "int", nullable: false),
+                ordinal = table.Column<int>(type: "int", nullable: false)
+                    .Annotation("SqlServer:Identity", "1, 1"),
                 Statement = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
                 MetricHint = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                 Measurable = table.Column<bool>(type: "bit", nullable: false)
@@ -118,7 +119,8 @@ public partial class Initial : Migration
             columns: table => new
             {
                 node_id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                ordinal = table.Column<int>(type: "int", nullable: false),
+                ordinal = table.Column<int>(type: "int", nullable: false)
+                    .Annotation("SqlServer:Identity", "1, 1"),
                 If = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                 Then = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                 Because = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false)
@@ -141,7 +143,8 @@ public partial class Initial : Migration
             columns: table => new
             {
                 node_id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                ordinal = table.Column<int>(type: "int", nullable: false),
+                ordinal = table.Column<int>(type: "int", nullable: false)
+                    .Annotation("SqlServer:Identity", "1, 1"),
                 Kind = table.Column<int>(type: "int", nullable: false),
                 Detail = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false)
             },
@@ -163,7 +166,8 @@ public partial class Initial : Migration
             columns: table => new
             {
                 node_id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                ordinal = table.Column<int>(type: "int", nullable: false),
+                ordinal = table.Column<int>(type: "int", nullable: false)
+                    .Annotation("SqlServer:Identity", "1, 1"),
                 UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                 Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                 Role = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
@@ -298,7 +302,8 @@ public partial class Initial : Migration
             columns: table => new
             {
                 run_id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                ordinal = table.Column<int>(type: "int", nullable: false),
+                ordinal = table.Column<int>(type: "int", nullable: false)
+                    .Annotation("SqlServer:Identity", "1, 1"),
                 FragmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                 VersionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                 Version = table.Column<int>(type: "int", nullable: false)

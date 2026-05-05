@@ -78,11 +78,34 @@ public sealed class FeatureService(
         NodeType type,
         string title,
         Guid ownerId,
+        string? intent = null,
         CancellationToken ct = default)
     {
         var parent = await nodes.GetAsync(parentId, ct)
             ?? throw new DomainException($"Parent node {parentId} not found.");
+
+        // Idempotency: if a sibling with this slug already exists under
+        // the parent (either from a prior partial-completion of the
+        // same accept-decompose loop, or a re-submission), return it as
+        // a no-op. The caller can RenameAsync / SetIntentAsync if it
+        // wants to update fields.
+        var siblings = await nodes.GetChildrenAsync(parentId, ct);
+        var existing = siblings.FirstOrDefault(n => n.Slug.Value == slug.Value);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
         var node = FeatureNode.Create(parent.ProjectId, parentId, slug, type, title, ownerId, clock.UtcNow);
+        if (!string.IsNullOrWhiteSpace(intent))
+        {
+            // Set intent in the same aggregate operation so persistence
+            // is one SaveChanges, one outbox flush, and one transactional
+            // boundary. Halves the # of saves per child and dramatically
+            // reduces interleaving with the outbox dispatcher's
+            // enrichment auto-queue.
+            node.SetIntent(intent, clock.UtcNow);
+        }
         await nodes.AddAsync(node, ct);
         events.Add(new NodeCreated(node.Id, parent.ProjectId, parentId, type, clock.UtcNow));
         await uow.SaveChangesAsync(ct);

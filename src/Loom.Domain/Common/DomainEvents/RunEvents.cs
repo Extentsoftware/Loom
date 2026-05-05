@@ -38,6 +38,22 @@ public sealed record RunCancelled(
     DateTimeOffset OccurredAt) : IDomainEvent;
 
 /// <summary>
+/// Fired when a run is assigned to a specific user — either explicitly by
+/// an orchestrator or pulled by a developer's MCP client claim. Used by
+/// the in-app notification path to ping the assignee.
+/// </summary>
+public sealed record RunAssigned(
+    RunId RunId,
+    Guid AssigneeUserId,
+    bool ViaClaim,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+public sealed record RunReleased(
+    RunId RunId,
+    Guid PreviousAssigneeUserId,
+    DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
 /// Wire-stable role designator for the human gate. Mirrors WorkflowStepGating
 /// but excludes Auto — auto steps never produce a RunPausedForHuman event.
 /// Kept narrow so the event payload doesn't drift if WorkflowStepGating gains

@@ -11,6 +11,7 @@ using Loom.Domain.Runs;
 using Loom.Domain.Workflows;
 using Loom.Infrastructure.Outbox;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Loom.Infrastructure.Persistence;
 
@@ -54,6 +55,7 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Annotation> Annotations => Set<Annotation>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<ProjectBudget> ProjectBudgets => Set<ProjectBudget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -149,5 +151,22 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
         }
 
         return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct = default)
+    {
+        var inner = await Database.BeginTransactionAsync(ct);
+        return new EfTransaction(inner);
+    }
+
+    /// <summary>
+    /// Thin adapter from EF Core's <c>IDbContextTransaction</c> to the
+    /// application-layer <see cref="IUnitOfWorkTransaction"/> abstraction.
+    /// </summary>
+    private sealed class EfTransaction(IDbContextTransaction inner) : IUnitOfWorkTransaction
+    {
+        public Task CommitAsync(CancellationToken ct = default) => inner.CommitAsync(ct);
+        public Task RollbackAsync(CancellationToken ct = default) => inner.RollbackAsync(ct);
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 }

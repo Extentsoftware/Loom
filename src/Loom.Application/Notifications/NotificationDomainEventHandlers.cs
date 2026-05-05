@@ -48,7 +48,8 @@ public sealed class RunPausedNotificationHandler(IRunRepository runs, INotificat
                 Title: $"Gate awaiting {evt.GatingRole}",
                 Body: $"Run paused at step '{evt.StepKey}'.",
                 DeepLink: new Uri($"/runs/{evt.RunId.Value:D}/gate", UriKind.Relative),
-                Severity: NotificationSeverity.Warning),
+                Severity: NotificationSeverity.Warning,
+                RunId: evt.RunId),
             ct);
     }
 }
@@ -71,7 +72,8 @@ public sealed class RunCompletedNotificationHandler(
                 Title: "Run completed",
                 Body: $"Run {evt.RunId.Value:N} completed (cost ${evt.CostUsd:F4}).",
                 DeepLink: new Uri($"/runs/{evt.RunId.Value:D}", UriKind.Relative),
-                Severity: NotificationSeverity.Info),
+                Severity: NotificationSeverity.Info,
+                RunId: evt.RunId),
             ct);
     }
 }
@@ -94,7 +96,8 @@ public sealed class RunFailedNotificationHandler(
                 Title: "Run failed",
                 Body: $"Run {evt.RunId.Value:N} failed: {evt.Reason}",
                 DeepLink: new Uri($"/runs/{evt.RunId.Value:D}", UriKind.Relative),
-                Severity: NotificationSeverity.Error),
+                Severity: NotificationSeverity.Error,
+                RunId: evt.RunId),
             ct);
     }
 }

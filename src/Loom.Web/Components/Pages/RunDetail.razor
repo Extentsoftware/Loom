@@ -17,6 +17,7 @@
 @inject IRunEventRepository RunEvents
 @inject IAssembledPromptRepository AssembledPrompts
 @inject IWorkflowRepository Workflows
+@inject IFragmentRepository Fragments
 @inject IRunService RunService
 @inject Loom.Web.Services.CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
@@ -109,9 +110,18 @@ else
                 <ul class="fragment-list">
                     @foreach (var f in _prompt.Fragments)
                     {
+                        var meta = _fragmentMeta.TryGetValue(f.FragmentId, out var m) ? m : null;
                         <li>
-                            <code>@f.FragmentId.Value.ToString("N").Substring(0, 8)</code>
-                            <span class="muted"> · v@f.Version</span>
+                            @if (meta is not null)
+                            {
+                                <a href="@($"/fragments/{f.FragmentId.Value:D}")">@meta.Title</a>
+                                <span class="muted"> · @meta.Key.Value · v@(f.Version)</span>
+                            }
+                            else
+                            {
+                                <code>@f.FragmentId.Value.ToString("N")[..8]</code>
+                                <span class="muted"> · v@(f.Version)</span>
+                            }
                         </li>
                     }
                 </ul>
@@ -172,6 +182,9 @@ else
     private string? _stepKey;
     private AssembledPrompt? _prompt;
     private List<RunEvent> _events = [];
+    private readonly Dictionary<Loom.Domain.Fragments.FragmentId, FragmentMeta> _fragmentMeta = [];
+
+    private sealed record FragmentMeta(Loom.Domain.Common.Slug Key, string Title);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -190,6 +203,25 @@ else
         }
 
         _prompt = await AssembledPrompts.GetByRunAsync(_run.Id);
+
+        // Look up titles for the fragments captured on the prompt so the
+        // "Fragments used" list is human-readable rather than a column of
+        // identical-looking 8-char UUIDv7 prefixes (all 31 seed fragments
+        // were created within the same millisecond, so their truncated
+        // ids collide).
+        _fragmentMeta.Clear();
+        if (_prompt is not null)
+        {
+            foreach (var fid in _prompt.Fragments.Select(f => f.FragmentId).Distinct())
+            {
+                var fragment = await Fragments.GetAsync(fid);
+                if (fragment is not null)
+                {
+                    _fragmentMeta[fid] = new FragmentMeta(fragment.Key, fragment.Title);
+                }
+            }
+        }
+
         var events = await RunEvents.GetByRunAsync(_run.Id);
         _events = events.OrderBy(e => e.Sequence).ToList();
         _loaded = true;

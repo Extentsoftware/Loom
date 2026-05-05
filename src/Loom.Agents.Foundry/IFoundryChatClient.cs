@@ -21,7 +21,8 @@ public interface IFoundryChatClient
 public sealed record FoundryRequest(
     string SystemPrompt,
     IReadOnlyList<FoundryMessage> Messages,
-    int? MaxOutputTokens);
+    int? MaxOutputTokens,
+    bool RequiresJsonOutput = false);
 
 public sealed record FoundryMessage(string Role, string Content);
 

@@ -23,14 +23,8 @@ public sealed record NotificationPayload(
     string Title,
     string Body,
     Uri? DeepLink,
-    NotificationSeverity Severity);
-
-public enum NotificationSeverity
-{
-    Info = 1,
-    Warning = 2,
-    Error = 3
-}
+    NotificationSeverity Severity,
+    Loom.Domain.Runs.RunId? RunId = null);
 
 /// <summary>
 /// Per-channel sender. Phase 3 ships InApp (SignalR) properly; Teams +

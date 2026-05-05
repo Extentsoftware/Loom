@@ -46,3 +46,18 @@ public sealed record DiscoveryAccepted(
     Guid ProjectId,
     Guid AcceptedBy,
     DateTimeOffset OccurredAt) : IDomainEvent;
+
+/// <summary>
+/// Fired once after the PO has accepted the kickoff `decompose` gate
+/// AND the accepted child nodes have been written to the DB. Carries
+/// the parent node id and the ids of the accepted children. Replaces
+/// "subscribe to NodeCreated and queue enrichment per child" with a
+/// single, post-commit signal — so background handlers (notably
+/// EnrichmentAutoQueueHandler) don't race against the mid-flight
+/// acceptance loop.
+/// </summary>
+public sealed record KickoffDecomposeAccepted(
+    NodeId ParentNodeId,
+    IReadOnlyList<NodeId> ChildNodeIds,
+    Guid AcceptedBy,
+    DateTimeOffset OccurredAt) : IDomainEvent;

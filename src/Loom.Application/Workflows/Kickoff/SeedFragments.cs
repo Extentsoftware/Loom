@@ -55,8 +55,31 @@ public static class SeedFragments
               questions is almost always wrong.
             - Do not name a solution. Stay at the problem layer.
 
-            Output strict JSON matching the DiscoveryObject schema. Do
-            not wrap in prose. Do not add explanatory comments.
+            Output strict JSON matching the DiscoveryObject schema below.
+            Do not wrap in prose. Do not add explanatory comments. Do not
+            invent fields the schema doesn't list.
+
+            DiscoveryObject schema (every property name is exact, lowercase
+            with underscores; arrays may be empty but never null):
+
+              {
+                "title":         string|null,
+                "intent":        string|null,
+                "outcomes":      [
+                                   {
+                                     "statement":   string,
+                                     "metric_hint": string|null,
+                                     "measurable":  boolean
+                                   }
+                                 ],
+                "hypotheses":    [
+                                   { "if": string, "then": string, "because": string }
+                                 ],
+                "open_questions":[ string ],
+                "stakeholders":  [
+                                   { "name": string, "role": string, "interest": string|null }
+                                 ]
+              }
             """),
 
         new(
@@ -67,10 +90,23 @@ public static class SeedFragments
             You are a product owner pairing with a senior architect.
             Given a Discovery Object, propose a tree of child nodes that
             decomposes the problem to the *capability* level (do NOT
-            propose slices in v1 — that's for the dev pair). Each child
-            has a slug, title, type, and a one-sentence intent.
+            propose slices in v1 — that's for the dev pair).
 
-            Output strict JSON matching the DecompositionProposal schema.
+            Output strict JSON matching the DecompositionProposal schema
+            below. Do not wrap in prose. Do not invent fields.
+
+            DecompositionProposal schema:
+
+              {
+                "children": [
+                  {
+                    "slug":   string,   // kebab-case, project-unique
+                    "title":  string,   // noun-shaped, ≤ 60 chars
+                    "type":   string,   // "Initiative" | "Feature" | "Capability" | "Slice"
+                    "intent": string|null  // one sentence; reuses parent's framing
+                  }
+                ]
+              }
             """),
 
         new(
@@ -671,31 +707,47 @@ public static class SeedFragments
             """
             Given a normalised transcript (turn objects with speaker +
             utterance), produce a DiscoveryObject JSON matching the
-            registered schema:
+            schema declared by the identity fragment EXACTLY. The
+            authoritative schema is repeated here so the field names
+            are unmissable:
 
               {
-                "title": "<short, problem-shaped>",
-                "intent": "<one sentence>",
-                "outcomes": [{ "text": "...", "unit": "%|count|null",
-                               "measurable": true|false }],
-                "hypotheses": ["..."],
-                "open_questions": ["..."],
-                "stakeholders": ["<name or role>"]
+                "title":         string|null,           // ≤ 60 chars, problem-shaped, NOT a solution
+                "intent":        string|null,           // one sentence
+                "outcomes":      [
+                                   {
+                                     "statement":   string,        // what we'd see if solved
+                                     "metric_hint": string|null,   // "%" / "count" / "minutes" / null
+                                     "measurable":  boolean        // true only if the statement has a number+direction
+                                   }
+                                 ],
+                "hypotheses":    [
+                                   { "if": string, "then": string, "because": string }
+                                 ],
+                "open_questions":[ string ],
+                "stakeholders":  [
+                                   { "name": string, "role": string, "interest": string|null }
+                                 ]
               }
 
             Rules:
+            - Use the exact lowercase property names above. No
+              "description", no "metric", no "statement" inside
+              hypotheses, no synonyms.
             - Title must be ≤ 60 characters and must NOT name a
               solution.
             - Intent must be one sentence. If it can't be one sentence,
-              the framing isn't ready — list it as an open question
-              and mark `intent` as the best partial.
-            - Every outcome that doesn't have a quantified component
-              must be marked `measurable: false` with a note in
-              `open_questions`.
-            - Hypotheses are falsifiable claims, not facts.
-            - A discovery with zero open questions is a smell —
-              surface whatever uncertainty was present in the
-              transcript.
+              the framing isn't ready — list the gap as an open
+              question and put the best partial in `intent`.
+            - Every outcome whose statement lacks a quantified component
+              must be marked `measurable: false`, and the missing metric
+              recorded in `open_questions`.
+            - Hypotheses are falsifiable "if X then Y because Z" claims,
+              not assumed facts. A team that asserts the cause without a
+              "because" clause is doing it wrong — the agent surfaces
+              this as an open question rather than fabricating one.
+            - A discovery with zero open questions is a smell — surface
+              whatever uncertainty was present in the transcript.
 
             If the transcript is sparse, leave arrays empty rather
             than fabricating content.
@@ -728,10 +780,26 @@ public static class SeedFragments
             its own; if a proposed child requires another sibling to
             be useful, merge them.
 
+            Output JSON matching the DecompositionProposal schema
+            EXACTLY (field names lowercase, types as shown):
+
+              {
+                "children": [
+                  {
+                    "slug":   string,        // kebab-case, project-unique, ≤ 40 chars
+                    "title":  string,        // noun-shaped, ≤ 60 chars
+                    "type":   string,        // "Capability" for v1; "Slice" only when explicitly asked
+                    "intent": string|null    // one sentence, reuses parent's framing
+                  }
+                ]
+              }
+
             Rules:
             - Stop at capability level for v1. Do NOT propose slices
               unless the capability has obvious independent surfaces
               and the team has asked for slice-level decomposition.
+            - Use the exact lowercase property names above; no
+              "description", "name", "summary", or other synonyms.
             - Each child has a noun-shaped title and an intent line
               that reuses the parent's framing. Children are not
               tasks; they are smaller features.

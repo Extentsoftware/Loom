@@ -71,6 +71,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IAnnotationRepository, AnnotationRepository>();
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IProjectBudgetRepository, ProjectBudgetRepository>();
         // Note: IOutboxWriter has no DI registration — the LoomDbContext
         // performs the outbox flush inline inside its overridden
@@ -87,6 +88,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFeatureService, FeatureService>();
         services.AddScoped<IFragmentService, FragmentService>();
         services.AddScoped<IRunService, RunService>();
+        services.AddScoped<Loom.Application.Runs.IRunAssignmentService, Loom.Application.Runs.RunAssignmentService>();
         services.AddScoped<IAssembledPromptComposer, AssembledPromptComposer>();
         services.AddScoped<IWorkflowEngine, WorkflowEngine>();
         services.AddScoped<IAgentRouter, DefaultAgentRouter>();
@@ -94,6 +96,7 @@ public static class ServiceCollectionExtensions
         // Phase-3 services.
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<INotificationFeed, NotificationFeed>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IArtifactService, ArtifactService>();
 
@@ -108,10 +111,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMemorySearch, SqlMemorySearch>();
         services.AddScoped<IInProcStep, MemoryLookupStep>();
 
-        // Notification channel stubs — InApp lives in Loom.Web (registered
-        // there). Teams + Email are stubs in Phase 3; real impls land in
-        // Phase 5+ once tenant config is in.
-        services.AddScoped<INotificationChannel, TeamsChannelStub>();
+        // Notification channels — InApp lives in Loom.Web (registered
+        // there). Teams uses an Incoming Webhook (real HTTP); Email is
+        // still a stub pending SMTP/Graph wiring.
+        services.AddOptions<TeamsWebhookOptions>()
+            .BindConfiguration(TeamsWebhookOptions.SectionName);
+        services.AddHttpClient<TeamsWebhookChannel>();
+        // The typed-client registration above adds TeamsWebhookChannel as
+        // transient; resolve through it so each notification gets a fresh
+        // HttpClient backed by the IHttpClientFactory pool.
+        services.AddScoped<INotificationChannel>(sp => sp.GetRequiredService<TeamsWebhookChannel>());
         services.AddScoped<INotificationChannel, EmailChannelStub>();
 
         // Outbox handlers that bridge domain events into NotificationService.
@@ -120,8 +129,24 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDomainEventHandler<Loom.Domain.Common.DomainEvents.RunCompleted>, RunCompletedNotificationHandler>();
         services.AddScoped<IDomainEventHandler<Loom.Domain.Common.DomainEvents.RunFailed>, RunFailedNotificationHandler>();
 
-        // Auto-queue enrichment workflow for every newly-created child node.
-        services.AddScoped<IDomainEventHandler<Loom.Domain.Common.DomainEvents.NodeCreated>, EnrichmentAutoQueueHandler>();
+        // Auto-queue enrichment workflow once the PO has committed the
+        // decompose acceptance (NOT per-NodeCreated — that shape raced
+        // with the user's accept loop and caused row-lock contention).
+        services.AddScoped<IDomainEventHandler<Loom.Domain.Common.DomainEvents.KickoffDecomposeAccepted>, EnrichmentAutoQueueHandler>();
+
+        // Queue an enrichment run when a node is advanced into the Enrich
+        // phase from the workspace's "Advance to enrich" button. Idempotent —
+        // skips if an active enrichment run already exists on the node.
+        services.AddScoped<IDomainEventHandler<Loom.Domain.Common.DomainEvents.NodePhaseAdvanced>, EnrichmentPhaseAdvanceHandler>();
+
+        // Step-output projectors. Each is registered as IStepOutputProjector;
+        // the WorkflowEngine resolves them by OutputSchemaName.
+        services.AddScoped<IStepOutputProjector, AcceptanceCriteriaProjector>();
+        services.AddScoped<IStepOutputProjector, RiskRegisterProjector>();
+        services.AddScoped<IStepOutputProjector, Loom.Application.Workflows.Wireframing.WireframeProjector>();
+
+        // Kickoff-acceptance orchestration (transactional accept-decompose).
+        services.AddScoped<Loom.Application.Workflows.Kickoff.IKickoffService, Loom.Application.Workflows.Kickoff.KickoffService>();
 
         return services;
     }

@@ -30,11 +30,16 @@ public sealed class WorkflowEngine(
     IRunRepository runs,
     IAgentRouter router,
     IEnumerable<IInProcStep> inProcSteps,
+    IEnumerable<IStepOutputProjector> projectors,
+    IEngineHealthMonitor health,
     IDomainEventCollector events,
     ISystemClock clock) : IWorkflowEngine
 {
     private readonly Dictionary<string, IInProcStep> _inProcByKey =
         inProcSteps.ToDictionary(s => s.StepKey, StringComparer.Ordinal);
+
+    private readonly Dictionary<string, IStepOutputProjector> _projectorsBySchema =
+        projectors.ToDictionary(p => p.SchemaName, StringComparer.Ordinal);
 
     public async Task<RunId?> StartAsync(
         NodeId nodeId,
@@ -176,18 +181,54 @@ public sealed class WorkflowEngine(
         {
             throw new DomainException($"Agent step '{step.Key}' missing EnginePref.");
         }
-        var enginePref = step.EnginePref.Value;
-        var runtime = router.Resolve(enginePref);
 
-        // Compose prompt.
+        // Compose prompt up-front; reused across retry attempts so the
+        // assembled-prompt content (and therefore the agent's view of the
+        // task) is identical regardless of which engine ends up executing.
         var fragments = await fragmentService.GetEffectiveFragmentsAsync(node.Id, step.FragmentSelectors, ct);
         var nodeContext = BuildNodeContext(node);
+
+        var chain = BuildFallbackChain(step.EnginePref.Value);
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < chain.Count; attempt++)
+        {
+            var engine = chain[attempt];
+            try
+            {
+                var result = await TryRunOnEngineAsync(node, workflow, step, engine, fragments, nodeContext, inputs, ct);
+                health.RecordSuccess(engine);
+                return result;
+            }
+            catch (DomainException ex)
+            {
+                lastError = ex;
+                health.RecordFailure(engine);
+                // Loop to next engine in chain. The previous run is already
+                // marked Failed by TryRunOnEngineAsync.
+            }
+        }
+        throw new DomainException(
+            $"Agent step '{step.Key}' failed on every engine in the fallback chain ({string.Join(", ", chain)}). Last error: {lastError?.Message}",
+            lastError ?? new InvalidOperationException("no engine attempts"));
+    }
+
+    private async Task<(string output, RunId runId)> TryRunOnEngineAsync(
+        FeatureNode node,
+        Workflow workflow,
+        WorkflowStep step,
+        EngineName engine,
+        IReadOnlyList<EffectiveFragment> fragments,
+        NodeContext nodeContext,
+        Dictionary<string, string> inputs,
+        CancellationToken ct)
+    {
+        var runtime = router.Resolve(engine);
 
         var run = await runService.QueueAsync(
             node.Id,
             workflowId: workflow.Id.Value,
             stepId: step.Id.Value,
-            engine: enginePref,
+            engine: engine,
             budgets: step.Budgets,
             fragments: [],
             ct);
@@ -202,7 +243,10 @@ public sealed class WorkflowEngine(
             Prompt: prompt,
             Budgets: step.Budgets,
             ToolGrants: [],
-            PreferredModel: null);
+            PreferredModel: null,
+            RequiresJsonOutput: !string.IsNullOrWhiteSpace(step.OutputSchemaName));
+
+        using var inflight = health.BeginInFlight(engine);
 
         var externalId = await runtime.StartAsync(request, ct);
         await runService.MarkRunningAsync(run.Id, externalId, ct);
@@ -227,10 +271,10 @@ public sealed class WorkflowEngine(
                     break;
                 case AgentRunEvent.Failed f:
                     await runService.FailAsync(run.Id, f.Reason, f.PartialCost, ct);
-                    throw new DomainException($"Agent run {run.Id} failed: {f.Reason}");
+                    throw new DomainException($"Agent run {run.Id} failed on {engine}: {f.Reason}");
                 case AgentRunEvent.Cancelled cancelled:
                     await runService.CancelAsync(run.Id, cancelled.Reason, ct);
-                    throw new DomainException($"Agent run {run.Id} cancelled: {cancelled.Reason}");
+                    throw new DomainException($"Agent run {run.Id} cancelled on {engine}: {cancelled.Reason}");
             }
         }
 
@@ -243,7 +287,44 @@ public sealed class WorkflowEngine(
         }
         await runService.CompleteAsync(run.Id, finalCost, ct);
 
+        if (!string.IsNullOrWhiteSpace(step.OutputSchemaName)
+            && _projectorsBySchema.TryGetValue(step.OutputSchemaName, out var projector))
+        {
+            try
+            {
+                await projector.ProjectAsync(node.Id, step, run.Id, output, ct);
+            }
+            catch (Exception ex)
+            {
+                await runService.AppendEventAsync(
+                    run.Id,
+                    seq => RunEvent.StepOutput(run.Id, seq, step.Key, $"projection-failed: {ex.Message}", clock.UtcNow),
+                    ct);
+            }
+        }
+
         return (output, run.Id);
+    }
+
+    /// <summary>
+    /// Build the per-step engine fallback chain. The step's preferred engine
+    /// is always tried first; the remaining hosted agent engines (excluding
+    /// InProc, which isn't an agent backend) follow in declared order with
+    /// duplicates removed. Capacity-aware tiebreaking happens inside the
+    /// router's ResolveWithFallback; this method just decides what's *eligible*
+    /// to fall back to.
+    /// </summary>
+    private static List<EngineName> BuildFallbackChain(EngineName preferred)
+    {
+        var chain = new List<EngineName> { preferred };
+        foreach (var alt in new[] { EngineName.Foundry, EngineName.Anthropic })
+        {
+            if (!chain.Contains(alt))
+            {
+                chain.Add(alt);
+            }
+        }
+        return chain;
     }
 
     private async Task<RunId?> PauseForGateAsync(

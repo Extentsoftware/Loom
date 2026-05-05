@@ -86,7 +86,7 @@ public sealed class EndToEndKickoffTests
 
         var engine = new WorkflowEngine(
             nodes, workflows, fragmentService, composer, runService,
-            runs, router, inProcSteps, events, clock);
+            runs, router, inProcSteps, projectors: [], new InMemoryEngineHealthMonitor(), events, clock);
 
         // Seed the kickoff workflow + a project + the placeholder root node.
         var workflow = KickoffWorkflowFactory.Build(Now);

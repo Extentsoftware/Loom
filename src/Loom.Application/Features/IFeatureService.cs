@@ -33,12 +33,25 @@ public interface IFeatureService
         Guid ownerId,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Create a child node under <paramref name="parentId"/>. Optionally
+    /// sets the node's <paramref name="intent"/> in the same SaveChanges
+    /// — the alternative (create then call SetIntentAsync) is two saves
+    /// per child and has surfaced concurrency issues when the outbox
+    /// dispatcher fires enrichment auto-queue handlers between them.
+    ///
+    /// If a sibling already exists with the same <paramref name="slug"/>,
+    /// the existing node is returned (the call is idempotent), and
+    /// intent / title are NOT updated — use RenameAsync / SetIntentAsync
+    /// to change those explicitly.
+    /// </summary>
     Task<FeatureNode> CreateChildNodeAsync(
         NodeId parentId,
         Slug slug,
         NodeType type,
         string title,
         Guid ownerId,
+        string? intent = null,
         CancellationToken ct = default);
 
     /// <summary>

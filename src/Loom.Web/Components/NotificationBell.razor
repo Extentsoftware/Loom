@@ -1,0 +1,137 @@
+@*
+    Bell-icon notification dropdown. Subscribes to NotificationHub on init,
+    adds new pushes to the head of the list, and offers mark-read /
+    mark-all-read controls. Click an item's deep-link to navigate.
+
+    No polling — once SignalR is connected the unread count updates from
+    push events. The initial unread count is loaded from the feed service
+    on first render.
+*@
+
+@using Loom.Application.Notifications
+@using Loom.Domain.Notifications
+@using Microsoft.AspNetCore.SignalR.Client
+@using Loom.Web.Services
+@inject INotificationFeed Feed
+@inject CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<div class="bell @(_open ? "bell-open" : "")">
+    <button class="bell-button" @onclick="Toggle" aria-label="Notifications">
+        🔔
+        @if (_unreadCount > 0)
+        {
+            <span class="bell-badge">@_unreadCount</span>
+        }
+    </button>
+
+    @if (_open)
+    {
+        <div class="bell-panel">
+            <header class="bell-panel-header">
+                <strong>Notifications</strong>
+                @if (_unreadCount > 0)
+                {
+                    <button class="bell-mark-all" @onclick="MarkAllReadAsync">Mark all read</button>
+                }
+            </header>
+            <ul class="bell-list">
+                @if (_recent.Count == 0)
+                {
+                    <li class="bell-empty">Nothing yet.</li>
+                }
+                @foreach (var n in _recent)
+                {
+                    <li class="bell-item @(n.ReadAt is null ? "bell-item-unread" : "")">
+                        <button class="bell-item-link" @onclick="() => OpenAsync(n)">
+                            <div class="bell-item-title">@n.Title</div>
+                            <div class="bell-item-body">@n.Body</div>
+                            <div class="bell-item-meta">@n.CreatedAt.ToLocalTime().ToString("g")</div>
+                        </button>
+                    </li>
+                }
+            </ul>
+            <footer class="bell-panel-footer">
+                <a href="/notifications">View all</a>
+                <a href="/settings/subscriptions">Settings</a>
+            </footer>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _open;
+    private int _unreadCount;
+    private readonly List<Notification> _recent = [];
+    private HubConnection? _hub;
+    private Guid _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = CurrentUser.GetUserId();
+        await RefreshAsync();
+
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/hubs/notifications"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hub.On<object>("notification", _ => InvokeAsync(RefreshAsync));
+
+        try
+        {
+            await _hub.StartAsync();
+            await _hub.SendAsync("JoinUser", _userId);
+        }
+        catch
+        {
+            // Hub unavailable in tests / startup races — bell still works
+            // off the initial fetch + manual refresh on click.
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _unreadCount = await Feed.UnreadCountAsync(_userId);
+        var recent = await Feed.ListRecentAsync(_userId, take: 10);
+        _recent.Clear();
+        _recent.AddRange(recent);
+        StateHasChanged();
+    }
+
+    private async Task Toggle()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            await RefreshAsync();
+        }
+    }
+
+    private async Task OpenAsync(Notification n)
+    {
+        await Feed.MarkReadAsync(n.Id, _userId);
+        await RefreshAsync();
+        if (!string.IsNullOrWhiteSpace(n.DeepLink))
+        {
+            Nav.NavigateTo(n.DeepLink!);
+        }
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        await Feed.MarkAllReadAsync(_userId);
+        await RefreshAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            try { await _hub.SendAsync("LeaveUser", _userId); } catch { /* ignore */ }
+            await _hub.DisposeAsync();
+        }
+    }
+}

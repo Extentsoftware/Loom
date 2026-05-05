@@ -87,6 +87,9 @@ internal static class ValueConverters
     public static readonly ValueConverter<SubscriptionId, Guid> SubscriptionId =
         new(id => id.Value, g => new SubscriptionId(g));
 
+    public static readonly ValueConverter<NotificationId, Guid> NotificationId =
+        new(id => id.Value, g => new NotificationId(g));
+
     public static readonly ValueConverter<RunId?, Guid?> NullableRunId =
         new(id => id.HasValue ? id.Value.Value : null,
             g => g.HasValue ? new RunId(g.Value) : null);

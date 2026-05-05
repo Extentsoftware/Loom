@@ -13,24 +13,23 @@ namespace Loom.Application.Tests.Workflows;
 public sealed class EnrichmentAutoQueueHandlerTests
 {
     [Fact]
-    public async Task Root_node_creation_skips_enrichment()
+    public async Task Empty_child_list_skips_enrichment()
     {
         var engine = new RecordingEngine();
         var workflows = new FakeWorkflowRepository();
         var handler = new EnrichmentAutoQueueHandler(engine, workflows);
 
-        await handler.HandleAsync(new NodeCreated(
-            new NodeId(Guid.CreateVersion7()),
-            ProjectId: Guid.CreateVersion7(),
-            ParentId: null,
-            Type: NodeType.Initiative,
+        await handler.HandleAsync(new KickoffDecomposeAccepted(
+            ParentNodeId: new NodeId(Guid.CreateVersion7()),
+            ChildNodeIds: [],
+            AcceptedBy: Guid.CreateVersion7(),
             OccurredAt: DateTimeOffset.UtcNow));
 
         engine.Started.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Child_node_creation_starts_enrichment_when_workflow_is_seeded()
+    public async Task Each_accepted_child_starts_enrichment_when_workflow_is_seeded()
     {
         var workflows = new FakeWorkflowRepository();
         var workflow = EnrichmentWorkflowFactory.Build(DateTimeOffset.UtcNow);
@@ -39,31 +38,30 @@ public sealed class EnrichmentAutoQueueHandlerTests
         var engine = new RecordingEngine();
         var handler = new EnrichmentAutoQueueHandler(engine, workflows);
 
-        var childId = new NodeId(Guid.CreateVersion7());
-        await handler.HandleAsync(new NodeCreated(
-            childId,
-            ProjectId: Guid.CreateVersion7(),
-            ParentId: new NodeId(Guid.CreateVersion7()),
-            Type: NodeType.Capability,
+        var childA = new NodeId(Guid.CreateVersion7());
+        var childB = new NodeId(Guid.CreateVersion7());
+        await handler.HandleAsync(new KickoffDecomposeAccepted(
+            ParentNodeId: new NodeId(Guid.CreateVersion7()),
+            ChildNodeIds: [childA, childB],
+            AcceptedBy: Guid.CreateVersion7(),
             OccurredAt: DateTimeOffset.UtcNow));
 
-        engine.Started.Should().ContainSingle();
-        engine.Started[0].NodeId.Should().Be(childId);
-        engine.Started[0].WorkflowId.Should().Be(workflow.Id);
+        engine.Started.Should().HaveCount(2);
+        engine.Started.Select(s => s.NodeId).Should().BeEquivalentTo(new[] { childA, childB });
+        engine.Started.Should().OnlyContain(s => s.WorkflowId == workflow.Id);
     }
 
     [Fact]
-    public async Task Child_node_creation_no_ops_when_workflow_missing()
+    public async Task No_ops_when_enrichment_workflow_missing()
     {
         var engine = new RecordingEngine();
         var handler = new EnrichmentAutoQueueHandler(engine, new FakeWorkflowRepository());
 
-        await handler.HandleAsync(new NodeCreated(
-            new NodeId(Guid.CreateVersion7()),
-            Guid.CreateVersion7(),
-            new NodeId(Guid.CreateVersion7()),
-            NodeType.Capability,
-            DateTimeOffset.UtcNow));
+        await handler.HandleAsync(new KickoffDecomposeAccepted(
+            ParentNodeId: new NodeId(Guid.CreateVersion7()),
+            ChildNodeIds: [new NodeId(Guid.CreateVersion7())],
+            AcceptedBy: Guid.CreateVersion7(),
+            OccurredAt: DateTimeOffset.UtcNow));
 
         engine.Started.Should().BeEmpty();
     }

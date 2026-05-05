@@ -23,6 +23,8 @@
 @inject IWorkflowRepository Workflows
 @inject IFeatureService Features
 @inject IWorkflowEngine Engine
+@inject IArtifactRepository ArtifactRepo
+@inject Loom.Application.Workflows.Kickoff.IKickoffService Kickoff
 @inject Loom.Web.Services.CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
 
@@ -143,12 +145,101 @@ else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey && _decomposition 
 
     <RunTimeline RunId="_run.Id" />
 }
+else if ((_step.Key == KickoffWorkflowFactory.DiscoveryStepKey ||
+          _step.Key == KickoffWorkflowFactory.DecomposeStepKey) &&
+         _rawAgentOutput is not null)
+{
+    <header class="page-head">
+        <p class="page-meta">
+            <a href="@($"/n/{_targetNodeId!.Value.Value:D}")">← Target node</a>
+        </p>
+        <h1 class="page-title">Agent output didn't parse</h1>
+        <p class="page-meta">
+            Step: <strong>@_step.Key</strong> · Gating: <strong>@_step.Gating</strong>
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <p>
+            The agent returned output that isn't valid JSON for the
+            <code>@_step.OutputSchemaName</code> schema. The most common
+            cause is a chatty model that wrapped its JSON in commentary
+            or a different markdown shape. The raw response is shown
+            below for inspection.
+        </p>
+        <p>
+            Two ways forward:
+        </p>
+        <ul>
+            <li>
+                <a href="@($"/runs/{_run.Id.Value:D}")">Open the run</a>
+                and click <strong>Replay this run</strong> — by next
+                turn the runtime will request strict JSON mode from
+                the engine, which usually resolves it.
+            </li>
+            <li>
+                Cancel this kickoff (Archive the target node) and start
+                fresh from <a href="/kickoff">Kickoff</a> with a more
+                explicit transcript.
+            </li>
+        </ul>
+        <h3>Raw agent output</h3>
+        <pre class="prompt-block">@_rawAgentOutput</pre>
+    </section>
+
+    <RunTimeline RunId="_run.Id" />
+}
+else if (_step.Gating == Loom.Domain.Workflows.WorkflowStepGating.HumanUx)
+{
+    <header class="page-head">
+        <p class="page-meta">
+            <a href="@($"/n/{_targetNodeId!.Value.Value:D}")">← Target node</a>
+        </p>
+        <h1 class="page-title">UX <em>review</em></h1>
+        <p class="page-meta">
+            Step: <strong>@_step.Key</strong> · Gating: <strong>@_step.Gating</strong>
+        </p>
+    </header>
+
+    <section class="ws-section">
+        <h2>Proposed wireframe</h2>
+        @if (_wireframeArtifactId is Guid wfId)
+        {
+            <p>
+                <a href="@($"/artifacts/{wfId:D}")">Open in Artifact Inspector →</a>
+            </p>
+            <p class="muted">Annotations and version history live on the inspector. Approve once you're satisfied with the proposal.</p>
+        }
+        else
+        {
+            <p class="muted">No wireframe artifact found for this node yet. The propose-wireframe step may still be running.</p>
+        }
+    </section>
+
+    <section class="ws-section">
+        <h2>Decision</h2>
+        <div class="form-row">
+            <label>Reviewer note (optional)</label>
+            <textarea rows="3" @bind="_uxNote"></textarea>
+        </div>
+        <button class="btn-primary" @onclick="ApproveUxAsync" disabled="@_busy">
+            @(_busy ? "Submitting…" : "Approve & continue")
+        </button>
+        <button class="btn-secondary" @onclick="RejectUxAsync" disabled="@_busy">
+            @(_busy ? "Submitting…" : "Reject & abort")
+        </button>
+        @if (_error is not null)
+        {
+            <p class="error">@_error</p>
+        }
+    </section>
+}
 else
 {
     <section class="empty-state">
         <h2>Unknown gate.</h2>
         <p>Step <strong>@_step.Key</strong> at gate role <strong>@_step.Gating</strong>.</p>
-        <p>This UI ships handlers for <code>discovery</code> and <code>decompose</code> only in Phase 1.</p>
+        <p>This UI ships handlers for <code>discovery</code>, <code>decompose</code>, and UX gates.</p>
     </section>
 }
 
@@ -161,8 +252,11 @@ else
     private Loom.Domain.Workflows.WorkflowStep? _step;
     private DiscoveryObject? _discovery;
     private DecompositionProposal? _decomposition;
+    private string? _rawAgentOutput;
     private DiscoveryEditModel _discoveryEdit = new();
     private DecomposeEditModel _proposalEdits = new();
+    private Guid? _wireframeArtifactId;
+    private string? _uxNote;
     private bool _busy;
     private string? _error;
 
@@ -210,6 +304,13 @@ else
                         {
                             _discoveryEdit = DiscoveryEditModel.From(_discovery);
                         }
+                        else
+                        {
+                            // Stash the raw output so the page can render
+                            // a recoverable fallback (see "Agent output
+                            // didn't parse" branch).
+                            _rawAgentOutput = raw;
+                        }
                     }
                     else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey)
                     {
@@ -217,6 +318,10 @@ else
                         if (_decomposition is not null)
                         {
                             _proposalEdits = DecomposeEditModel.From(_decomposition);
+                        }
+                        else
+                        {
+                            _rawAgentOutput = raw;
                         }
                     }
                 }
@@ -227,7 +332,70 @@ else
             }
         }
 
+        // For UX gates we don't parse JSON; the wireframe artifact has
+        // already been projected onto the node by WireframeProjector.
+        // Look it up so the page can deep-link into the inspector.
+        if (_step is not null && _step.Gating == Loom.Domain.Workflows.WorkflowStepGating.HumanUx && _targetNodeId is not null)
+        {
+            var artifacts = await ArtifactRepo.GetByNodeAsync(_targetNodeId.Value);
+            var wireframe = artifacts.FirstOrDefault(a => a.Kind == Loom.Domain.Artifacts.ArtifactKind.Wireframe);
+            _wireframeArtifactId = wireframe?.Id.Value;
+        }
+
         _loaded = true;
+    }
+
+    private async Task ApproveUxAsync()
+    {
+        if (_run is null || _step is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var edits = string.IsNullOrWhiteSpace(_uxNote)
+                ? null
+                : (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { ["ux.note"] = _uxNote.Trim() };
+            await Engine.ResolveGateAsync(_run.Id, _step.Key, CurrentUser.GetUserId(), edits);
+            if (_targetNodeId is not null)
+            {
+                Nav.NavigateTo($"/n/{_targetNodeId.Value.Value:D}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RejectUxAsync()
+    {
+        if (_run is null || _step is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            // Phase-4 skinny: rejection cancels the run. A future iteration
+            // re-queues the propose-wireframe step with the reviewer note
+            // appended to inputs so the agent can revise.
+            await Engine.ResolveGateAsync(_run.Id, _step.Key, CurrentUser.GetUserId(),
+                new Dictionary<string, string> { ["ux.rejected"] = "true", ["ux.note"] = _uxNote ?? string.Empty });
+            if (_targetNodeId is not null)
+            {
+                Nav.NavigateTo($"/n/{_targetNodeId.Value.Value:D}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task AcceptDiscoveryAsync()
@@ -255,7 +423,12 @@ else
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            // Surface the inner exception too — EF wraps the actual SQL
+            // error inside DbUpdateException with an unhelpful outer
+            // message, and 99% of the time the inner is what diagnoses
+            // the issue.
+            var inner = ex.InnerException;
+            _error = inner is null ? ex.Message : $"{ex.Message} — {inner.GetType().Name}: {inner.Message}";
         }
         finally
         {
@@ -271,6 +444,10 @@ else
         try
         {
             var ownerId = CurrentUser.GetUserId();
+            // Project the accepted edits into the application service's
+            // shape, validating slugs upfront so we surface bad input
+            // before opening the transaction.
+            var accepted = new List<Loom.Application.Workflows.Kickoff.ProposedChildAcceptance>();
             foreach (var c in _proposalEdits.Children.Where(c => c.Accepted))
             {
                 if (string.IsNullOrWhiteSpace(c.Slug) || string.IsNullOrWhiteSpace(c.Title))
@@ -280,23 +457,32 @@ else
                 Slug slug;
                 try { slug = Slug.From(c.Slug.Trim()); }
                 catch { _error = $"Invalid slug '{c.Slug}'."; return; }
-                var child = await Features.CreateChildNodeAsync(
-                    _targetNodeId.Value, slug, c.ParseType(), c.Title.Trim(), ownerId);
-                if (!string.IsNullOrWhiteSpace(c.Intent))
-                {
-                    await Features.SetIntentAsync(child.Id, c.Intent, CurrentUser.GetUserId());
-                }
+                accepted.Add(new Loom.Application.Workflows.Kickoff.ProposedChildAcceptance(
+                    Slug: slug,
+                    Type: c.ParseType(),
+                    Title: c.Title.Trim(),
+                    Intent: string.IsNullOrWhiteSpace(c.Intent) ? null : c.Intent.Trim()));
             }
 
-            await Engine.ResolveGateAsync(
-                _run.Id, KickoffWorkflowFactory.DecomposeStepKey, ownerId);
+            // One transactional unit: create children + emit the
+            // KickoffDecomposeAccepted signal + resolve the gate. The
+            // outbox dispatcher only sees the committed end-state, so
+            // EnrichmentAutoQueueHandler can't race against the
+            // half-built tree.
+            await Kickoff.AcceptDecompositionAsync(
+                _run.Id, _targetNodeId.Value, accepted, ownerId);
 
             // Decompose is the last step; redirect to the workspace.
             Nav.NavigateTo($"/n/{_targetNodeId.Value.Value:D}");
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            // Surface the inner exception too — EF wraps the actual SQL
+            // error inside DbUpdateException with an unhelpful outer
+            // message, and 99% of the time the inner is what diagnoses
+            // the issue.
+            var inner = ex.InnerException;
+            _error = inner is null ? ex.Message : $"{ex.Message} — {inner.GetType().Name}: {inner.Message}";
         }
         finally
         {
@@ -325,7 +511,41 @@ else
         }
     }
 
+    /// <summary>
+    /// Tolerant agent-output parser. The agent is supposed to emit strict
+    /// JSON, but in practice GPT-style models sometimes wrap in
+    /// ```json ... ``` fences or emit "Sure, here it is: { ... }" prose.
+    /// We try in order: raw, fence-stripped, first balanced-brace block.
+    /// Only a true JsonException after all attempts returns null.
+    /// </summary>
     private static T? TryParse<T>(string raw) where T : class
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+        // 1. Straight parse.
+        if (TryDeserialize<T>(raw) is { } direct)
+        {
+            return direct;
+        }
+        // 2. Strip ```json ... ``` (or ``` ... ```) fences.
+        var fenced = StripCodeFence(raw);
+        if (!ReferenceEquals(fenced, raw) && TryDeserialize<T>(fenced) is { } unfenced)
+        {
+            return unfenced;
+        }
+        // 3. Extract the first balanced { ... } block (handles "Sure, here:
+        //    {…}" or trailing commentary).
+        var block = ExtractFirstJsonObject(raw);
+        if (block is not null && TryDeserialize<T>(block) is { } extracted)
+        {
+            return extracted;
+        }
+        return null;
+    }
+
+    private static T? TryDeserialize<T>(string raw) where T : class
     {
         try
         {
@@ -335,6 +555,57 @@ else
         {
             return null;
         }
+    }
+
+    private static string StripCodeFence(string raw)
+    {
+        var trimmed = raw.Trim();
+        if (!trimmed.StartsWith("```"))
+        {
+            return raw;
+        }
+        // Drop opening fence (with optional language tag) and closing fence.
+        var firstNewline = trimmed.IndexOf('\n');
+        if (firstNewline < 0)
+        {
+            return raw;
+        }
+        var body = trimmed[(firstNewline + 1)..];
+        if (body.EndsWith("```"))
+        {
+            body = body[..^3];
+        }
+        return body.Trim();
+    }
+
+    private static string? ExtractFirstJsonObject(string raw)
+    {
+        var start = raw.IndexOf('{');
+        if (start < 0)
+        {
+            return null;
+        }
+        var depth = 0;
+        var inString = false;
+        var escaped = false;
+        for (var i = start; i < raw.Length; i++)
+        {
+            var c = raw[i];
+            if (escaped) { escaped = false; continue; }
+            if (c == '\\' && inString) { escaped = true; continue; }
+            if (c == '"') { inString = !inString; continue; }
+            if (inString) { continue; }
+            if (c == '{') depth++;
+            else if (c == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return raw[start..(i + 1)];
+                }
+            }
+        }
+        return null;
     }
 
     private sealed class DiscoveryEditModel

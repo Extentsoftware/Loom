@@ -70,7 +70,7 @@ public sealed class WorkflowEngineTests
 
         var engine = new WorkflowEngine(
             nodes, workflows, fragmentService, composer, runService, runs,
-            router, inProcSteps, events, clock);
+            router, inProcSteps, projectors: [], new InMemoryEngineHealthMonitor(), events, clock);
 
         // Act ─────────────────────────────────────────────────────────
         var pausedAt = await engine.StartAsync(

@@ -102,20 +102,36 @@ public sealed class FragmentRepository(LoomDbContext db) : IFragmentRepository
                 f => f.Key == k && f.Scope == scope && f.ScopeId == scopeId, ct);
     }
 
+    // All List queries .Include("_versions") so callers (FragmentService's
+    // scope-walking GetEffectiveFragmentsAsync, the Library page) see
+    // each fragment's versions populated. Without the include, Fragment.
+    // CurrentVersion returns null and the composer silently drops the
+    // fragment — which manifests as Run prompts with "Fragments used:
+    // No fragments." even though selectors matched.
     public async Task<IReadOnlyList<Fragment>> ListByCategoryAsync(FragmentCategory category, CancellationToken ct = default) =>
-        await db.Fragments.Where(f => f.Category == category).OrderBy(f => f.Title).ToListAsync(ct);
+        await db.Fragments
+            .Include("_versions")
+            .Where(f => f.Category == category)
+            .OrderBy(f => f.Title)
+            .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Fragment>> ListGlobalAsync(CancellationToken ct = default) =>
-        await db.Fragments.Where(f => f.Scope == FragmentScope.Global).OrderBy(f => f.Title).ToListAsync(ct);
+        await db.Fragments
+            .Include("_versions")
+            .Where(f => f.Scope == FragmentScope.Global)
+            .OrderBy(f => f.Title)
+            .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Fragment>> ListByProjectAsync(Guid projectId, CancellationToken ct = default) =>
         await db.Fragments
+            .Include("_versions")
             .Where(f => f.Scope == FragmentScope.Project && f.ScopeId == projectId)
             .OrderBy(f => f.Title)
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Fragment>> ListByNodeAsync(Guid nodeId, CancellationToken ct = default) =>
         await db.Fragments
+            .Include("_versions")
             .Where(f => f.Scope == FragmentScope.Node && f.ScopeId == nodeId)
             .OrderBy(f => f.Title)
             .ToListAsync(ct);
@@ -138,6 +154,13 @@ public sealed class RunRepository(LoomDbContext db) : IRunRepository
     public async Task<IReadOnlyList<Run>> GetActiveAsync(CancellationToken ct = default) =>
         await db.Runs
             .Where(r => r.State == RunState.Queued || r.State == RunState.Running || r.State == RunState.PausedForHuman)
+            .OrderBy(r => r.CreatedAt)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Run>> ListClaimableForAsync(Guid userId, CancellationToken ct = default) =>
+        await db.Runs
+            .Where(r => r.State == RunState.PausedForHuman
+                && (r.AssigneeUserId == null || r.AssigneeUserId == userId))
             .OrderBy(r => r.CreatedAt)
             .ToListAsync(ct);
 
@@ -336,6 +359,35 @@ public sealed class SubscriptionRepository(LoomDbContext db) : ISubscriptionRepo
     }
 
     public void Remove(Loom.Domain.Notifications.Subscription subscription) => db.Subscriptions.Remove(subscription);
+}
+
+public sealed class NotificationRepository(LoomDbContext db) : INotificationRepository
+{
+    public Task AddAsync(Loom.Domain.Notifications.Notification notification, CancellationToken ct = default)
+    {
+        db.Notifications.Add(notification);
+        return Task.CompletedTask;
+    }
+
+    public Task<Loom.Domain.Notifications.Notification?> GetAsync(Loom.Domain.Notifications.NotificationId id, CancellationToken ct = default) =>
+        db.Notifications.FirstOrDefaultAsync(n => n.Id == id, ct);
+
+    public async Task<IReadOnlyList<Loom.Domain.Notifications.Notification>> ListRecentAsync(Guid userId, int take, CancellationToken ct = default) =>
+        await db.Notifications
+            .Where(n => n.UserId == userId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Take(take <= 0 ? 25 : take)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Loom.Domain.Notifications.Notification>> ListUnreadAsync(Guid userId, int take, CancellationToken ct = default) =>
+        await db.Notifications
+            .Where(n => n.UserId == userId && n.ReadAt == null)
+            .OrderByDescending(n => n.CreatedAt)
+            .Take(take <= 0 ? 25 : take)
+            .ToListAsync(ct);
+
+    public Task<int> UnreadCountAsync(Guid userId, CancellationToken ct = default) =>
+        db.Notifications.CountAsync(n => n.UserId == userId && n.ReadAt == null, ct);
 }
 
 public sealed class ProjectBudgetRepository(LoomDbContext db) : IProjectBudgetRepository

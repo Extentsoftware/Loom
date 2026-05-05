@@ -1,0 +1,90 @@
+@page "/notifications"
+@*
+    Full notification feed. Lists recent notifications with mark-read and
+    a "mark all read" affordance. Header inherits the app-nav bell badge,
+    so this page is the persistent overflow for users who want to scan
+    the last day or so of activity.
+*@
+
+@using Loom.Application.Notifications
+@using Loom.Domain.Notifications
+@using Loom.Web.Services
+@inject INotificationFeed Feed
+@inject CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<h1 class="page-title">Notifications</h1>
+
+<section class="ws-section">
+    <div class="ws-section-header">
+        <h2>Recent</h2>
+        <button class="btn-secondary" @onclick="MarkAllReadAsync" disabled="@(_unread == 0)">Mark all read (@_unread)</button>
+    </div>
+
+    @if (_items.Count == 0)
+    {
+        <p class="muted">Nothing yet. Subscriptions live at <a href="/settings/subscriptions">Settings</a>.</p>
+    }
+    else
+    {
+        <ul class="notif-list">
+            @foreach (var n in _items)
+            {
+                <li class="notif-item @(n.ReadAt is null ? "notif-unread" : "")">
+                    <div class="notif-title">@n.Title</div>
+                    <div class="notif-body">@n.Body</div>
+                    <div class="notif-meta">
+                        <span>@n.CreatedAt.ToLocalTime().ToString("g")</span>
+                        @if (!string.IsNullOrWhiteSpace(n.DeepLink))
+                        {
+                            <button class="btn-link" @onclick="() => OpenAsync(n)">Open</button>
+                        }
+                        else if (n.ReadAt is null)
+                        {
+                            <button class="btn-link" @onclick="() => MarkReadAsync(n)">Mark read</button>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    private readonly List<Notification> _items = [];
+    private int _unread;
+    private Guid _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = CurrentUser.GetUserId();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _items.Clear();
+        _items.AddRange(await Feed.ListRecentAsync(_userId, take: 100));
+        _unread = await Feed.UnreadCountAsync(_userId);
+        StateHasChanged();
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        await Feed.MarkAllReadAsync(_userId);
+        await LoadAsync();
+    }
+
+    private async Task MarkReadAsync(Notification n)
+    {
+        await Feed.MarkReadAsync(n.Id, _userId);
+        await LoadAsync();
+    }
+
+    private async Task OpenAsync(Notification n)
+    {
+        await Feed.MarkReadAsync(n.Id, _userId);
+        Nav.NavigateTo(n.DeepLink!);
+    }
+}

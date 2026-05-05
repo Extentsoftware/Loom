@@ -16,10 +16,36 @@ namespace Loom.Application.Tests.Fakes;
 public sealed class FakeUnitOfWork : IUnitOfWork
 {
     public int SaveCount { get; private set; }
+    public int TransactionsBegun { get; private set; }
+    public int TransactionsCommitted { get; private set; }
+    public int TransactionsRolledBack { get; private set; }
+
     public Task<int> SaveChangesAsync(CancellationToken ct = default)
     {
         SaveCount++;
         return Task.FromResult(0);
+    }
+
+    public Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct = default)
+    {
+        TransactionsBegun++;
+        return Task.FromResult<IUnitOfWorkTransaction>(new FakeTransaction(this));
+    }
+
+    private sealed class FakeTransaction(FakeUnitOfWork owner) : IUnitOfWorkTransaction
+    {
+        private bool _settled;
+        public Task CommitAsync(CancellationToken ct = default)
+        {
+            if (!_settled) { owner.TransactionsCommitted++; _settled = true; }
+            return Task.CompletedTask;
+        }
+        public Task RollbackAsync(CancellationToken ct = default)
+        {
+            if (!_settled) { owner.TransactionsRolledBack++; _settled = true; }
+            return Task.CompletedTask;
+        }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
 
@@ -135,6 +161,12 @@ public sealed class FakeRunRepository : IRunRepository
         Task.FromResult<IReadOnlyList<Run>>(ById.Values.Where(r => r.NodeId == nodeId).OrderBy(r => r.CreatedAt).ToList());
     public Task<IReadOnlyList<Run>> GetActiveAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Run>>(ById.Values.Where(r => !r.IsTerminal).ToList());
+    public Task<IReadOnlyList<Run>> ListClaimableForAsync(Guid userId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<Run>>(ById.Values
+            .Where(r => r.State == RunState.PausedForHuman
+                && (r.AssigneeUserId is null || r.AssigneeUserId == userId))
+            .OrderBy(r => r.CreatedAt)
+            .ToList());
 }
 
 public sealed class FakeRunEventRepository : IRunEventRepository

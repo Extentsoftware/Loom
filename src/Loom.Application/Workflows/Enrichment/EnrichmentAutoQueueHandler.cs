@@ -6,25 +6,27 @@ namespace Loom.Application.Workflows.Enrichment;
 
 /// <summary>
 /// Outbox handler that auto-queues an enrichment workflow execution for
-/// every newly-created child node. The PO accepts the decompose proposal
-/// → each accepted child creates a NodeCreated event → this handler picks
-/// it up off the outbox and starts the enrichment workflow against the
-/// child. The handler is best-effort: if the workflow doesn't exist yet,
-/// it logs and skips (the bootstrapper races at first run).
+/// each child node accepted at the kickoff decompose gate. Subscribes to
+/// <see cref="KickoffDecomposeAccepted"/> rather than the per-child
+/// <c>NodeCreated</c> event — that earlier shape fired in the middle of
+/// the user's accept-decompose loop and contended for row locks with
+/// the user's pending writes. Listening to a single post-commit signal
+/// guarantees enrichment only kicks in after the PO's transaction is
+/// fully committed.
 ///
-/// Root nodes (those without a parent) are explicitly skipped because the
-/// kickoff workflow is the producer for those.
+/// Handler is best-effort: if the enrichment workflow doesn't yet
+/// exist (bootstrapper races at first run) it logs and skips. The
+/// manual /enrich button will work once it does.
 /// </summary>
 public sealed class EnrichmentAutoQueueHandler(
     IWorkflowEngine engine,
-    IWorkflowRepository workflows) : IDomainEventHandler<NodeCreated>
+    IWorkflowRepository workflows) : IDomainEventHandler<KickoffDecomposeAccepted>
 {
-    public async Task HandleAsync(NodeCreated evt, CancellationToken ct = default)
+    public async Task HandleAsync(KickoffDecomposeAccepted evt, CancellationToken ct = default)
     {
-        if (evt.ParentId is null)
+        ArgumentNullException.ThrowIfNull(evt);
+        if (evt.ChildNodeIds.Count == 0)
         {
-            // Root nodes are kickoff targets; their lifecycle is the
-            // kickoff workflow, not enrichment.
             return;
         }
 
@@ -32,15 +34,27 @@ public sealed class EnrichmentAutoQueueHandler(
             Slug.From(EnrichmentWorkflowFactory.WorkflowKey), ct);
         if (workflow is null)
         {
-            // Bootstrapper hasn't seeded yet, or seeding was disabled.
-            // Skip — manual /enrich button will work once it does.
+            // Bootstrapper hasn't seeded yet; nothing to do.
             return;
         }
 
-        await engine.StartAsync(
-            evt.NodeId,
-            workflow.Id,
-            new Dictionary<string, string>(),
-            ct);
+        // Queue enrichment per child. Each StartAsync creates its own
+        // Run records; failures on one child don't block the others
+        // (any per-child failure shows on the Agent Activity page).
+        foreach (var childId in evt.ChildNodeIds)
+        {
+            try
+            {
+                await engine.StartAsync(
+                    childId, workflow.Id, new Dictionary<string, string>(), ct);
+            }
+            catch
+            {
+                // Best-effort — enrichment is idempotent at the
+                // workflow level (re-runnable from the workspace),
+                // so a failure here just means the user kicks it
+                // off manually.
+            }
+        }
     }
 }

@@ -56,10 +56,24 @@ public sealed class FoundryChatClient(
         requestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
         requestMessage.Headers.TryAddWithoutValidation("api-key", opts.ApiKey);
 
-        var messages = new List<ApiMessage>(capacity: request.Messages.Count + 1);
+        var messages = new List<ApiMessage>(capacity: request.Messages.Count + 2);
         if (!string.IsNullOrEmpty(request.SystemPrompt))
         {
             messages.Add(new ApiMessage { Role = "system", Content = request.SystemPrompt });
+        }
+        // Azure OpenAI's response_format=json_object validation requires
+        // the literal word "json" in some message. The seeded fragments
+        // do mention JSON, but case + boundary matching has bitten us
+        // before — appending an explicit lowercase-"json" instruction
+        // is belt-and-braces and also doubles as a final reminder to
+        // the model.
+        if (request.RequiresJsonOutput)
+        {
+            messages.Add(new ApiMessage
+            {
+                Role = "system",
+                Content = "Respond with a single valid json object that matches the schema described above. No commentary, no markdown fences, no prose — just the json."
+            });
         }
         foreach (var m in request.Messages)
         {
@@ -71,7 +85,14 @@ public sealed class FoundryChatClient(
             Messages = messages,
             MaxTokens = request.MaxOutputTokens ?? 4096,
             Stream = true,
-            StreamOptions = new ApiStreamOptions { IncludeUsage = true }
+            StreamOptions = new ApiStreamOptions { IncludeUsage = true },
+            // Forces a JSON-object reply on Azure OpenAI / Foundry when the
+            // owning workflow step declares an OutputSchemaName. Without
+            // this, GPT-style models sometimes wrap their JSON in prose or
+            // markdown fences and downstream parsers fall over.
+            ResponseFormat = request.RequiresJsonOutput
+                ? new ApiResponseFormat { Type = "json_object" }
+                : null
         };
         var bodyJson = JsonSerializer.Serialize(body, Json);
         requestMessage.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
@@ -242,6 +263,7 @@ public sealed class FoundryChatClient(
 
         [JsonPropertyName("stream")] public bool Stream { get; set; }
         [JsonPropertyName("stream_options")] public ApiStreamOptions? StreamOptions { get; set; }
+        [JsonPropertyName("response_format")] public ApiResponseFormat? ResponseFormat { get; set; }
     }
 
     private sealed class ApiMessage
@@ -253,6 +275,11 @@ public sealed class FoundryChatClient(
     private sealed class ApiStreamOptions
     {
         [JsonPropertyName("include_usage")] public bool IncludeUsage { get; set; }
+    }
+
+    private sealed class ApiResponseFormat
+    {
+        [JsonPropertyName("type")] public string Type { get; set; } = "text";
     }
 
     private sealed class ChatStreamPayload

@@ -19,7 +19,19 @@ public interface IEngineHealthMonitor
     void RecordSuccess(EngineName engine);
     void RecordFailure(EngineName engine);
 
+    /// <summary>
+    /// Track an in-flight call; dispose the returned token when the call
+    /// settles. The router uses live in-flight counts as a tiebreaker
+    /// between equally-healthy engines.
+    /// </summary>
+    IDisposable BeginInFlight(EngineName engine);
+
     IReadOnlyDictionary<EngineName, EngineHealth> All();
 }
 
-public sealed record EngineHealth(EngineName Engine, int RecentSuccess, int RecentFailure, bool IsHealthy);
+public sealed record EngineHealth(
+    EngineName Engine,
+    int RecentSuccess,
+    int RecentFailure,
+    int InFlight,
+    bool IsHealthy);

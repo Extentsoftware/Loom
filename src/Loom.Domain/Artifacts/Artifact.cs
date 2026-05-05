@@ -23,7 +23,9 @@ public enum ArtifactKind
     Diagram = 4,
     TestPlan = 5,
     Adr = 6,
-    Doc = 7
+    Doc = 7,
+    /// <summary>Risk register / mitigation list, typically agent-generated.</summary>
+    Risks = 8
 }
 
 public enum CanonicalStore

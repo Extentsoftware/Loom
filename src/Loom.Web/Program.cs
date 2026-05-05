@@ -146,6 +146,7 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapHub<NodeHub>("/hubs/node");
+app.MapHub<Loom.Web.Hubs.NotificationHub>("/hubs/notifications");
 
 // MCP endpoints (HTTP/SSE transport, mounted at /mcp).
 app.MapMcp("/mcp");

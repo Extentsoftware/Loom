@@ -51,30 +51,39 @@ public sealed class DefaultAgentRouter(
             throw new ArgumentException("At least one engine preference is required.", nameof(preferences));
         }
 
-        IAgentRuntime? lastRegistered = null;
-        foreach (var pref in preferences)
+        // Walk the preference list in order, but among consecutive equally-
+        // healthy engines pick the one with the lowest in-flight count.
+        // This gives us:
+        //   • health-first ordering (a sick engine is always skipped if a
+        //     healthy one is available later in the list);
+        //   • capacity-aware tiebreak when multiple are healthy.
+        var registered = preferences
+            .Where(p => _byEngine.ContainsKey(p))
+            .ToList();
+        if (registered.Count == 0)
         {
-            if (!_byEngine.TryGetValue(pref, out var runtime))
-            {
-                continue;
-            }
-            lastRegistered = runtime;
-            if (_health is null || _health.Snapshot(pref).IsHealthy)
-            {
-                return runtime;
-            }
+            throw new InvalidOperationException(
+                $"None of the requested engines are registered. Wanted: {string.Join(", ", preferences)}; have: {string.Join(", ", _byEngine.Keys)}.");
         }
 
-        if (lastRegistered is not null)
+        if (_health is null)
         {
-            // Every preferred engine is registered but unhealthy. Try the
-            // first registered one anyway — recent history is only a hint,
-            // and reporting "no engine available" would be worse for the
-            // user than letting the engine make its own decision.
-            return lastRegistered;
+            return _byEngine[registered[0]];
         }
 
-        throw new InvalidOperationException(
-            $"None of the requested engines are registered. Wanted: {string.Join(", ", preferences)}; have: {string.Join(", ", _byEngine.Keys)}.");
+        var healthy = registered
+            .Select(p => (Pref: p, Snapshot: _health.Snapshot(p)))
+            .Where(x => x.Snapshot.IsHealthy)
+            .ToList();
+        if (healthy.Count > 0)
+        {
+            var pick = healthy.OrderBy(x => x.Snapshot.InFlight).First().Pref;
+            return _byEngine[pick];
+        }
+
+        // All registered preferences look unhealthy. Recent history is only
+        // a hint — fall through to the first registered preference rather
+        // than failing outright.
+        return _byEngine[registered[0]];
     }
 }

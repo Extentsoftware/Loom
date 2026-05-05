@@ -17,17 +17,19 @@ public sealed class InMemoryEngineHealthMonitor : IEngineHealthMonitor
     private const double FailureThreshold = 0.5;
 
     private readonly ConcurrentDictionary<EngineName, EngineWindow> _windows = new();
+    private readonly ConcurrentDictionary<EngineName, int> _inFlight = new();
 
     public EngineHealth Snapshot(EngineName engine)
     {
+        var inFlight = _inFlight.TryGetValue(engine, out var f) ? f : 0;
         if (!_windows.TryGetValue(engine, out var w))
         {
-            return new EngineHealth(engine, 0, 0, IsHealthy: true);
+            return new EngineHealth(engine, 0, 0, inFlight, IsHealthy: true);
         }
         var (success, failure) = w.Counts();
         var total = success + failure;
         var unhealthy = total >= 5 && (double)failure / total > FailureThreshold;
-        return new EngineHealth(engine, success, failure, !unhealthy);
+        return new EngineHealth(engine, success, failure, inFlight, !unhealthy);
     }
 
     public void RecordSuccess(EngineName engine) =>
@@ -36,8 +38,31 @@ public sealed class InMemoryEngineHealthMonitor : IEngineHealthMonitor
     public void RecordFailure(EngineName engine) =>
         _windows.GetOrAdd(engine, _ => new EngineWindow()).Record(false);
 
-    public IReadOnlyDictionary<EngineName, EngineHealth> All() =>
-        _windows.Keys.ToDictionary(k => k, Snapshot);
+    public IDisposable BeginInFlight(EngineName engine)
+    {
+        _inFlight.AddOrUpdate(engine, 1, (_, n) => n + 1);
+        return new InFlightToken(this, engine);
+    }
+
+    public IReadOnlyDictionary<EngineName, EngineHealth> All()
+    {
+        var keys = _windows.Keys.Concat(_inFlight.Keys).Distinct();
+        return keys.ToDictionary(k => k, Snapshot);
+    }
+
+    private void EndInFlight(EngineName engine) =>
+        _inFlight.AddOrUpdate(engine, 0, (_, n) => Math.Max(0, n - 1));
+
+    private sealed class InFlightToken(InMemoryEngineHealthMonitor owner, EngineName engine) : IDisposable
+    {
+        private bool _disposed;
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            owner.EndInFlight(engine);
+        }
+    }
 
     private sealed class EngineWindow
     {

@@ -169,6 +169,22 @@ public sealed class LoomBootstrapper(
                 Application.Workflows.Enrichment.EnrichmentWorkflowFactory.WorkflowKey,
                 Application.Workflows.Enrichment.EnrichmentWorkflowFactory.CurrentVersion);
         }
+
+        // Phase-4 (skinny): seed the wireframing workflow. Creates a draft
+        // wireframe artifact and pauses at a UX-gated review.
+        var existingWireframing = await workflows.GetByKeyAsync(
+            Slug.From(Application.Workflows.Wireframing.WireframingWorkflowFactory.WorkflowKey),
+            Application.Workflows.Wireframing.WireframingWorkflowFactory.CurrentVersion,
+            ct);
+        if (existingWireframing is null)
+        {
+            var wireframing = Application.Workflows.Wireframing.WireframingWorkflowFactory.Build(clock.UtcNow);
+            await workflows.AddAsync(wireframing, ct);
+            await uow.SaveChangesAsync(ct);
+            BootstrapperLog.SeededWorkflow(logger,
+                Application.Workflows.Wireframing.WireframingWorkflowFactory.WorkflowKey,
+                Application.Workflows.Wireframing.WireframingWorkflowFactory.CurrentVersion);
+        }
     }
 }
 

@@ -53,6 +53,16 @@ public sealed class Run
     public DateTimeOffset? CompletedAt { get; private set; }
     public AssembledPromptId? AssembledPromptId { get; private set; }
 
+    /// <summary>
+    /// Optional assignee — the user (Loom user id) responsible for human-
+    /// gated work on this run. Set either explicitly via <see cref="AssignTo"/>
+    /// (e.g. by an orchestrator) or pulled by a developer's MCP client via
+    /// <see cref="ClaimBy"/>. Null means the run is unassigned and any
+    /// matching user is free to claim it.
+    /// </summary>
+    public Guid? AssigneeUserId { get; private set; }
+    public DateTimeOffset? AssignedAt { get; private set; }
+
     public IReadOnlyList<FragmentRef> Fragments => _fragments.AsReadOnly();
 
     public static Run Queue(
@@ -137,6 +147,58 @@ public sealed class Run
         State = RunState.Cancelled;
         FailureReason = reason.Trim();
         CompletedAt = now;
+    }
+
+    /// <summary>
+    /// Assign this run to a user. Legal at any non-terminal state — an
+    /// orchestrator may pre-assign before queuing, or reassign during a
+    /// pause. Throws on terminal runs.
+    /// </summary>
+    public void AssignTo(Guid userId, DateTimeOffset now)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new DomainException("AssigneeUserId must be a non-empty GUID.");
+        }
+        if (IsTerminal)
+        {
+            throw new DomainException($"Cannot assign a {State} run.");
+        }
+        AssigneeUserId = userId;
+        AssignedAt = now;
+    }
+
+    /// <summary>
+    /// Pull-style assignment — succeeds only if the run is currently
+    /// unassigned. Used by the MCP claim path so two developers' Claude
+    /// instances can't both grab the same task.
+    /// </summary>
+    public void ClaimBy(Guid userId, DateTimeOffset now)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new DomainException("AssigneeUserId must be a non-empty GUID.");
+        }
+        if (IsTerminal)
+        {
+            throw new DomainException($"Cannot claim a {State} run.");
+        }
+        if (AssigneeUserId.HasValue && AssigneeUserId.Value != userId)
+        {
+            throw new DomainException(
+                $"Run {Id} is already claimed by {AssigneeUserId.Value}.");
+        }
+        AssigneeUserId = userId;
+        AssignedAt = now;
+    }
+
+    /// <summary>
+    /// Drop the current assignee. No-op if already unassigned.
+    /// </summary>
+    public void Release(DateTimeOffset _)
+    {
+        AssigneeUserId = null;
+        AssignedAt = null;
     }
 
     public bool IsTerminal =>

@@ -80,7 +80,8 @@ public sealed class FoundryAgentRuntime(
         var foundryRequest = new FoundryRequest(
             SystemPrompt: request.Prompt.SystemPrompt,
             Messages: [.. request.Prompt.Messages.Select(m => new FoundryMessage(m.Role, m.Content))],
-            MaxOutputTokens: request.Budgets.MaxOutputTokens);
+            MaxOutputTokens: request.Budgets.MaxOutputTokens,
+            RequiresJsonOutput: request.RequiresJsonOutput);
 
         var inputTokens = 0;
         var outputTokens = 0;

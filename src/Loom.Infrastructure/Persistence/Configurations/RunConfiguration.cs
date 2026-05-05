@@ -25,6 +25,9 @@ internal sealed class RunConfiguration : IEntityTypeConfiguration<Run>
         b.Property(r => r.CompletedAt);
         b.Property(r => r.AssembledPromptId).HasConversion(ValueConverters.NullableAssembledPromptId);
 
+        b.Property(r => r.AssigneeUserId);
+        b.Property(r => r.AssignedAt);
+
         // Budgets and Cost are inline value objects, not entities. EF
         // Core 8+ provides `ComplexProperty` for exactly this use case:
         // same column layout as OwnsOne, but no synthetic FK, no
@@ -70,5 +73,7 @@ internal sealed class RunConfiguration : IEntityTypeConfiguration<Run>
         b.HasIndex(r => r.NodeId);
         b.HasIndex(r => r.State);
         b.HasIndex(r => r.CreatedAt);
+        // "What's queued for me?" — narrow index for the MCP claim-list path.
+        b.HasIndex(r => new { r.AssigneeUserId, r.State });
     }
 }
