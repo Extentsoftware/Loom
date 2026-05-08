@@ -34,6 +34,19 @@ public interface ISubscriptionService
         WorkflowStepGatingRole? role = null,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Subscribe globally — fires for every matching event regardless of
+    /// node or project. Pair with a Role for "page me on any UX gate
+    /// anywhere" type rules.
+    /// </summary>
+    Task<Subscription> SubscribeGlobalAsync(
+        Guid userId,
+        SubscriptionEventType eventType,
+        SubscriptionChannel channel,
+        SubscriptionMode mode,
+        WorkflowStepGatingRole? role = null,
+        CancellationToken ct = default);
+
     Task UnsubscribeAsync(SubscriptionId id, CancellationToken ct = default);
     Task<IReadOnlyList<Subscription>> ListMineAsync(Guid userId, CancellationToken ct = default);
 }

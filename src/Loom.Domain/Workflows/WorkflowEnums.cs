@@ -22,5 +22,6 @@ public enum WorkflowStepGating
     Auto = 1,
     HumanPo = 2,
     HumanUx = 3,
-    HumanLead = 4
+    HumanLead = 4,
+    HumanDev = 5
 }

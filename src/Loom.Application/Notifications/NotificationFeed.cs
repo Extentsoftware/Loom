@@ -42,4 +42,22 @@ public sealed class NotificationFeed(
         }
         await uow.SaveChangesAsync(ct);
     }
+
+    public async Task DeleteAsync(NotificationId id, Guid userId, CancellationToken ct = default)
+    {
+        var n = await repo.GetAsync(id, ct);
+        if (n is null || n.UserId != userId)
+        {
+            return;
+        }
+        repo.Remove(n);
+        await uow.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteAllAsync(Guid userId, CancellationToken ct = default)
+    {
+        // ExecuteDeleteAsync issues a single DELETE, so no per-row tracking
+        // needed. SaveChanges is implicit inside ExecuteDelete.
+        _ = await repo.DeleteAllForUserAsync(userId, ct);
+    }
 }

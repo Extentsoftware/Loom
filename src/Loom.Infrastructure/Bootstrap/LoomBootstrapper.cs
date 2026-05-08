@@ -161,6 +161,24 @@ public sealed class LoomBootstrapper(
             Application.Workflows.Wireframing.WireframingWorkflowFactory.CurrentVersion,
             () => Application.Workflows.Wireframing.WireframingWorkflowFactory.Build(clock.UtcNow),
             ct);
+
+        await SeedIfMissingAsync(workflows, uow,
+            Application.Workflows.Engineering.SliceDesignWorkflowFactory.WorkflowKey,
+            Application.Workflows.Engineering.SliceDesignWorkflowFactory.CurrentVersion,
+            () => Application.Workflows.Engineering.SliceDesignWorkflowFactory.Build(clock.UtcNow),
+            ct);
+
+        await SeedIfMissingAsync(workflows, uow,
+            Application.Workflows.Engineering.BuildWorkflowFactory.WorkflowKey,
+            Application.Workflows.Engineering.BuildWorkflowFactory.CurrentVersion,
+            () => Application.Workflows.Engineering.BuildWorkflowFactory.Build(clock.UtcNow),
+            ct);
+
+        await SeedIfMissingAsync(workflows, uow,
+            Application.Workflows.Engineering.TestPlanWorkflowFactory.WorkflowKey,
+            Application.Workflows.Engineering.TestPlanWorkflowFactory.CurrentVersion,
+            () => Application.Workflows.Engineering.TestPlanWorkflowFactory.Build(clock.UtcNow),
+            ct);
     }
 
     private async Task SeedIfMissingAsync(

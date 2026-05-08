@@ -267,73 +267,152 @@ short answer for each:
 
 ## 5. What's left to do
 
-**P0 — finish the demo loop**
+This list is current as of the project-scoped subscriptions slice.
+Anything that says *done* here is wired end-to-end and verified by
+build + tests passing — see the "delivered since last walkthrough"
+list at the end.
 
-1. **Teams notification channel** — `INotificationChannel` for Teams is
-   stubbed in `src/Loom.Application/Notifications/`. Wire it through
-   Microsoft Graph so run-completion and gate-paused events land as
-   adaptive cards. *~2–3 days.*
-2. **Notification Centre UI** — design §14 screen #10. The InApp
-   channel works (`NodeHub` SignalR), the inbox view is missing.
-   *~3 days.*
-3. **Foundry pricing calibration** — `FoundryCostCalculator.Models`
-   has placeholder GPT-5.4 numbers. Confirm the team's Foundry list
-   price for `marketplace-prompt` and update. *~30 minutes once we
-   have the price.*
-4. **Foundry workflow re-seed** — existing seeded workflows in
-   running databases still pin `Anthropic`. Either bump
-   `KickoffWorkflowFactory.CurrentVersion` to `2` and re-seed, or
-   wipe and re-bootstrap. *~1 hour.*
+**P0 — close-out items**
 
-**P1 — Phase 4: Design round-trip (the biggest gap)**
+1. **Foundry pricing calibration** — `FoundryCostCalculator.Models`
+   still has placeholder GPT-5.4 numbers. Confirm the team's Foundry
+   list price for `marketplace-prompt` and update. *~30 minutes once
+   we have the price.*
+2. **Fix dual-EF-provider conflict in `Loom.Web.Tests`** — three host
+   smoke tests are broken by the SQLite-dev work; the test factory's
+   `RemoveAll(DbContextOptions<LoomDbContext>)` doesn't strip EF
+   Core 10's internal services, so InMemory and SqlServer collide.
+   *~1 day.*
 
-5. **Figma adapter + plugin** — REST adapter in
+**P1 — Phase 4: Design round-trip**
+
+The skinny path is in: a wireframing workflow that produces an HTML
+envelope, projects it as a `Wireframe` artifact, and pauses at a UX
+gate which renders accept/reject in the existing PoGate page.
+What's *missing* is the real Figma round-trip:
+
+3. **Figma adapter + plugin** — REST adapter in
    `src/Loom.Integrations/Figma/`, custom plugin that reads/writes
-   wireframes by node URN. Adds the `wireframe` step and a UX gate to
-   the kickoff workflow. *~2–3 weeks.*
-6. **UX validation gate + feedback-fragment auto-derivation** — extend
-   the gate machinery to call into Figma; promote recurring
-   annotations into `feedback:*` fragments after N occurrences.
-   *~1 week.*
+   wireframes by node URN. Replaces the canonical store on the
+   `Wireframe` artifact from `HubNative` to `Figma`. Same workflow
+   shape; the projector's pointer changes. *~2–3 weeks.*
+4. **Feedback-fragment auto-derivation** — promote recurring
+   annotations on artifacts into `feedback:*` fragments after N
+   occurrences. The annotation surface exists (`ArtifactInspector`);
+   the deduplication + fragment-create flow doesn't. *~1 week.*
 
 **P1 — Phase 6: Real memory**
 
-7. **Elasticsearch indexer** — `IMemorySearch` ships, `SqlMemorySearch`
+5. **Elasticsearch indexer** — `IMemorySearch` ships, `SqlMemorySearch`
    is the SQL fallback. Ship a Lucene/ES indexer fed by the outbox so
    memory-lookup is genuinely "have we seen this before?" — currently
    it's a keyword search. *~1 week.*
-8. **Search UI** — node/run/ADR search across the project. The seam
+6. **Search UI** — node/run/ADR search across the project. The seam
    exists, the screen does not. *~2 days.*
 
-**P2 — Phase 5b + 7**
+**P2 — Phase 5b: extend the developer loop**
 
-9. **Claude Code Headless runtime** — `Loom.Agents.ClaudeCodeHeadless`
-   to run multi-file edit + bash/lint/test loops. The router will
-   pick it for code-heavy slice work. *~1 week.*
-10. **Workflow Designer** — visual DAG editor + YAML view + dry-run.
+The pull-claim MCP path (`loom_list_my_tasks` / `loom_claim_task` /
+`loom_complete_task` / `loom_release_task`) gives developers a way to
+take work through Claude Code today; ClaudeCodeHeadless is no longer
+required to demo the loop, but the runtime is still useful for batch
+slice-execution.
+
+7. **Per-user MCP auth** — today the MCP tools accept a `userId`
+   parameter and trust the caller. Real per-user tokens (mapped to
+   Loom user ids) need to land before this is shareable beyond a
+   single dev box. *~3 days.*
+8. **Claude Code Headless runtime** — `Loom.Agents.ClaudeCodeHeadless`
+   to run multi-file edit + bash/lint/test loops as an *agent engine*
+   (separate from the dev's own Claude Code instance). The router
+   will pick it for code-heavy slice work. *~1 week.*
+
+**P2 — Phase 7: methodology evolution**
+
+9. **Workflow Designer** — visual DAG editor + YAML view + dry-run.
     Phase 7 enabler so methodology evolves without code. *~2 weeks.*
-11. **Annotation → fragment promotion** — auto-propose new feedback
+10. **Annotation → fragment promotion** — auto-propose new feedback
     fragments when an annotation recurs N≥3 times across nodes; the
     methodology owner accepts/rejects. *~3 days.*
-12. **Fragment usage stats + deprecation flow** — quarterly fragment
+11. **Fragment usage stats + deprecation flow** — quarterly fragment
     review tooling. *~3 days.*
 
 **P3 — Operational hardening**
 
-13. **Multi-tenant by project** — single-tenant today (ADR-0016 defers
+12. **Multi-tenant by project** — single-tenant today (ADR-0016 defers
     multi-tenancy). Row-level security on `ProjectId` when we onboard
     the second team.
-14. **Fix dual-EF-provider conflict in `Loom.Web.Tests`** — three host
-    smoke tests broken by the recent SQLite-dev work. Already filed as
-    a side task in this session.
-15. **OpenTelemetry + proper health checks** — currently
+13. **OpenTelemetry + proper health checks** — currently
     `/healthz` is a one-liner. Stand up traces, metrics, and per-engine
     health in App Insights.
 
-**Demo-ready scope**: P0 plus the existing Phase 1-3 surface is enough
-to take Andy's eight-minute kickoff demo to a live audience. P1 is
-what unlocks the full methodology loop including the design round-trip
-and "we've seen this before" memory.
+---
+
+### Delivered since the last walkthrough revision
+
+These items either replace, satisfy, or sit alongside earlier P0/P1/P2
+entries. Listed for quick orientation, not as future work.
+
+- **Teams notification channel** ([TeamsWebhookChannel.cs](../src/Loom.Application/Notifications/TeamsWebhookChannel.cs))
+  — replaces the stub. Posts adaptive cards via an Incoming Webhook
+  configured under `Loom:Notifications:Teams:WebhookUrl`.
+- **Notification Centre UI** — bell icon in `MainLayout` with live
+  push from `NotificationHub`; full feed at `/notifications`;
+  mark-read / mark-all-read.
+- **Project- and role-scoped subscriptions** — `Subscription` carries
+  optional `ProjectId` and `Role` (`WorkflowStepGatingRole`); a UX
+  reviewer can subscribe once at project scope and only get pinged on
+  UX gates. UI: `/settings/subscriptions`.
+- **Foundry as the default engine** — kickoff/v2 + enrichment/v2 +
+  wireframing/v1 all pin `EngineName.Foundry`.
+- **Multi-engine routing + failover (Phase 5a)** — `WorkflowEngine`
+  walks a fallback chain on per-engine failure; `IEngineHealthMonitor`
+  tracks rolling success/failure + in-flight counts; `DefaultAgentRouter`
+  picks the least-loaded healthy engine.
+- **Step-output projection seam** — `IStepOutputProjector` resolves by
+  `OutputSchemaName`; ships projectors for `AcceptanceCriteria`,
+  `RiskRegister`, `Wireframe` writing into the existing `Artifact`
+  aggregate. Re-runs update the canonical pointer (no longer
+  silently no-op).
+- **Composer schema teaching** — `AssembledPromptComposer` appends a
+  hard-coded "Required output shape" block when the step declares a
+  known schema; no longer relies on fragments to teach JSON shape.
+- **Per-kind Artifact Inspector renderers** — Wireframe → sandboxed
+  iframe; AcceptanceCriteria → checklist; RiskRegister → table;
+  fallback → `<pre>`.
+- **UX validation gate** — `WorkflowStepGating.HumanUx` rendered in
+  PoGate.razor with deep-link to the projected wireframe + accept /
+  reject controls.
+- **Wireframing workflow + launcher** — `wireframing/v1` (one Foundry
+  agent step + one UX gate); `Run wireframing` button on the
+  workspace.
+- **Pull-claim MCP path** — `Run.AssigneeUserId/AssignedAt`,
+  `RunAssignmentService`, four MCP tools (`loom_list_my_tasks`,
+  `loom_claim_task`, `loom_complete_task`, `loom_release_task`).
+- **Project DAG dashboard** — `/projects/{id}/dag`, cytoscape-driven
+  (built-in `breadthfirst` layout, no plugin), phase-coloured nodes,
+  click-to-navigate.
+- **Operating Picture project mgmt** — create / rename / archive
+  projects from the dashboard header.
+- **Discovery editors** — Hypotheses, Outcomes, Stakeholders,
+  Constraints, OpenQuestions all editable from the workspace.
+- **Audit trail** — `NodeUpdated.Actor` + `NodeEditKind` carry who
+  changed what.
+- **Fragment library viewing/editing** — full CRUD at `/fragments`
+  including the seeded library.
+- **SQLite dev provider** — no-install dev path; provider auto-detect
+  from connection string. `EnsureCreated` from model on Sqlite,
+  `MigrateAsync` on SqlServer.
+- **Blazor concurrency hardening** — InteractiveServer pages no
+  longer prerender-against-the-circuit-scoped DbContext;
+  `NotificationBell` and the wireframing launcher use per-call
+  `IServiceScopeFactory` so layout-level + page-level DB calls don't
+  race.
+
+**Demo-ready scope**: P0 + the delivered list is enough for the
+eight-minute kickoff demo *plus* the developer-loop (notification →
+MCP claim → complete) walk-through. P1 is what unlocks the design
+round-trip via Figma and the "we've seen this before" memory.
 
 ## 6. Glossary
 
