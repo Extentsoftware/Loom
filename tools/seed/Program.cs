@@ -4,6 +4,7 @@ using Loom.Domain.Nodes;
 using Loom.Infrastructure;
 using Loom.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -19,12 +20,33 @@ using Microsoft.Extensions.Hosting;
 //
 // Idempotent: if the project slug already exists, nothing is changed.
 
-// Default points at the docker-compose MSSQL service (`docker compose up`).
-// Override with LOOM_CONNECTION when running against another DB.
+// Connection-string lookup order:
+//   1. LOOM_CONNECTION env var (explicit override).
+//   2. ConnectionStrings:Loom in src/Loom.Web/appsettings.{ENV}.json — so
+//      seed always points at the same DB the web app is configured for.
+//   3. ConnectionStrings:Loom in src/Loom.Web/appsettings.json (the
+//      LocalDB fallback).
+//
+// Reading the web's appsettings is the failsafe: if you change the web
+// connection (e.g. switch from LocalDB to docker:1433) you don't have to
+// remember to update the seed too.
+var envName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+    ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+    ?? "Development";
+
+var webDir = System.IO.Path.GetFullPath(System.IO.Path.Combine(
+    AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Loom.Web"));
+var webAppSettings = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+    .AddJsonFile(System.IO.Path.Combine(webDir, "appsettings.json"), optional: true)
+    .AddJsonFile(System.IO.Path.Combine(webDir, $"appsettings.{envName}.json"), optional: true)
+    .Build();
+
 var connection =
     Environment.GetEnvironmentVariable("LOOM_CONNECTION")
-    ?? "Server=localhost,1433;Database=loom;User Id=sa;Password=Loom_dev_pwd_1!;TrustServerCertificate=True;Encrypt=False";
+    ?? webAppSettings.GetConnectionString("Loom")
+    ?? "Server=(localdb)\\MSSQLLocalDB;Database=loom;Trusted_Connection=True;TrustServerCertificate=True";
 
+Console.WriteLine($"[seed] env: {envName}");
 Console.WriteLine($"[seed] connection: {Redact(connection)}");
 
 var host = Host.CreateDefaultBuilder(args)
@@ -51,7 +73,8 @@ const string projectSlug = "retail-web";
 var existing = await projects.GetBySlugAsync(projectSlug);
 if (existing is not null)
 {
-    Console.WriteLine($"[seed] project '{projectSlug}' already exists; nothing to do.");
+    Console.WriteLine($"[seed] project '{projectSlug}' already exists with id {existing.Id}; nothing to do.");
+    Console.WriteLine($"[seed] To reseed: drop the database, or pick a different LOOM_CONNECTION, then re-run.");
     return;
 }
 

@@ -54,7 +54,16 @@
       "PowerShell([Environment]::GetEnvironmentVariable\\('NODE_EXTRA_CA_CERTS', 'User'\\))",
       "PowerShell($env:NODE_EXTRA_CA_CERTS = 'C:\\\\Users\\\\marcu\\\\loom-dev-cert.crt'; claude mcp list 2>&1 | Select-Object -First 5)",
       "PowerShell(Get-Process claude -ErrorAction SilentlyContinue)",
-      "mcp__loom__loom_list_my_tasks"
+      "mcp__loom__loom_list_my_tasks",
+      "Bash(git rebase *)",
+      "Bash(git reset *)",
+      "Bash(rm -f loom.dev.db loom.dev.db-*)",
+      "Bash(LOOM_CONNECTION=\"Data Source=loom.dev.db\" dotnet run --project tools/seed)",
+      "Bash(where sqllocaldb *)",
+      "Bash(sqllocaldb info *)",
+      "Bash(sqllocaldb start *)",
+      "Bash(LOOM_CONNECTION=\"Server=\\(localdb\\)\\\\MSSQLLocalDB;Database=loom_diag;Trusted_Connection=True;TrustServerCertificate=True\" dotnet run --project tools/seed)",
+      "Bash(dotnet run *)"
     ]
   }
 }
