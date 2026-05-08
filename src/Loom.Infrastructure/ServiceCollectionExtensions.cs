@@ -53,6 +53,12 @@ public static class ServiceCollectionExtensions
                     sql.MigrationsHistoryTable("__ef_migrations_history", "loom");
                 });
             }
+            // Suppress the pending-model-changes warning. The model carries
+            // intentional deltas ahead of migrations (SQLite-only tweaks,
+            // HasDefaultValue on hint columns, etc.) that are harmless on
+            // existing schemas; failing seed/Migrate over them blocks dev.
+            options.ConfigureWarnings(w => w.Ignore(
+                Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         });
         services.AddSingleton(new LoomDatabaseProvider(isSqlite ? DatabaseProviderKind.Sqlite : DatabaseProviderKind.SqlServer));
 
