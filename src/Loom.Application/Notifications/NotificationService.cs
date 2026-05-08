@@ -19,10 +19,16 @@ public sealed class NotificationService(
     private readonly Dictionary<SubscriptionChannel, INotificationChannel> _byChannel =
         channels.ToDictionary(c => c.Channel);
 
-    public async Task DispatchAsync(NodeId nodeId, SubscriptionEventType eventType, NotificationPayload payload, CancellationToken ct = default)
+    public async Task DispatchAsync(
+        NodeId nodeId,
+        Guid projectId,
+        SubscriptionEventType eventType,
+        NotificationPayload payload,
+        Loom.Domain.Common.DomainEvents.WorkflowStepGatingRole? eventRole = null,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(payload);
-        var matched = await subscriptions.FindForEventAsync(nodeId, eventType, ct);
+        var matched = await subscriptions.FindForEventAsync(nodeId, projectId, eventType, eventRole, ct);
 
         foreach (var sub in matched)
         {

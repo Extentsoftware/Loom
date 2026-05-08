@@ -12,7 +12,19 @@ namespace Loom.Application.Notifications;
 /// </summary>
 public interface INotificationService
 {
-    Task DispatchAsync(NodeId nodeId, SubscriptionEventType eventType, NotificationPayload payload, CancellationToken ct = default);
+    /// <summary>
+    /// Dispatch an event to subscribers. The dispatcher matches against
+    /// node-scoped AND project-scoped subscriptions; an optional event
+    /// role is used to filter role-narrowed subscriptions (today only
+    /// RunPaused events carry a role).
+    /// </summary>
+    Task DispatchAsync(
+        NodeId nodeId,
+        Guid projectId,
+        SubscriptionEventType eventType,
+        NotificationPayload payload,
+        Loom.Domain.Common.DomainEvents.WorkflowStepGatingRole? eventRole = null,
+        CancellationToken ct = default);
 }
 
 /// <summary>

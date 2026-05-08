@@ -1,3 +1,4 @@
+using Loom.Domain.Common.DomainEvents;
 using Loom.Domain.Nodes;
 using Loom.Domain.Notifications;
 
@@ -8,11 +9,21 @@ public interface ISubscriptionRepository
     Task<Subscription?> GetAsync(SubscriptionId id, CancellationToken ct = default);
 
     /// <summary>
-    /// Find subscriptions matching a node + event type that should fire
-    /// for any user. Used by the notification dispatcher when an event
-    /// arrives.
+    /// Find subscriptions matching an event. Returns rows that subscribe
+    /// either to this exact node or to its containing project, with an
+    /// optional role narrowing applied:
+    /// <list type="bullet">
+    /// <item>row.Role == null matches any role (or events without one);</item>
+    /// <item>row.Role == eventRole matches;</item>
+    /// <item>otherwise skipped.</item>
+    /// </list>
     /// </summary>
-    Task<IReadOnlyList<Subscription>> FindForEventAsync(NodeId nodeId, SubscriptionEventType eventType, CancellationToken ct = default);
+    Task<IReadOnlyList<Subscription>> FindForEventAsync(
+        NodeId nodeId,
+        Guid projectId,
+        SubscriptionEventType eventType,
+        WorkflowStepGatingRole? eventRole,
+        CancellationToken ct = default);
 
     Task<IReadOnlyList<Subscription>> ListByUserAsync(Guid userId, CancellationToken ct = default);
 

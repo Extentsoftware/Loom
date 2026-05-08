@@ -50,7 +50,11 @@
       "Bash(git push *)",
       "mcp__Claude_in_Chrome__tabs_context_mcp",
       "mcp__Claude_in_Chrome__browser_batch",
-      "mcp__Claude_in_Chrome__navigate"
+      "mcp__Claude_in_Chrome__navigate",
+      "PowerShell([Environment]::GetEnvironmentVariable\\('NODE_EXTRA_CA_CERTS', 'User'\\))",
+      "PowerShell($env:NODE_EXTRA_CA_CERTS = 'C:\\\\Users\\\\marcu\\\\loom-dev-cert.crt'; claude mcp list 2>&1 | Select-Object -First 5)",
+      "PowerShell(Get-Process claude -ErrorAction SilentlyContinue)",
+      "mcp__loom__loom_list_my_tasks"
     ]
   }
 }

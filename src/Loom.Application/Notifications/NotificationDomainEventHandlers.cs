@@ -19,30 +19,40 @@ public sealed class NodeUpdatedNotificationHandler(INotificationService notifica
     public Task HandleAsync(NodeUpdated evt, CancellationToken ct = default) =>
         notifications.DispatchAsync(
             evt.NodeId,
+            evt.ProjectId,
             SubscriptionEventType.NodeUpdated,
             new NotificationPayload(
                 Title: "Node updated",
                 Body: $"Node {evt.NodeId.Value:N} was updated.",
                 DeepLink: new Uri($"/n/{evt.NodeId.Value:D}", UriKind.Relative),
                 Severity: NotificationSeverity.Info),
-            ct);
+            eventRole: null,
+            ct: ct);
 }
 
-public sealed class RunPausedNotificationHandler(IRunRepository runs, INotificationService notifications)
+public sealed class RunPausedNotificationHandler(
+    IRunRepository runs,
+    IFeatureNodeRepository nodes,
+    INotificationService notifications)
     : IDomainEventHandler<RunPausedForHuman>
 {
     public async Task HandleAsync(RunPausedForHuman evt, CancellationToken ct = default)
     {
-        // The event carries RunId but not NodeId; resolve via the run repo
-        // before fanning out so subscription matching has a node key.
-        // Phase-3.5 may push NodeId onto the event payload directly.
+        // The event carries RunId but not NodeId / ProjectId; resolve via
+        // the run + node repos so subscription matching has both keys.
         var run = await runs.GetAsync(evt.RunId, ct);
         if (run is null)
         {
             return;
         }
+        var node = await nodes.GetAsync(run.NodeId, ct);
+        if (node is null)
+        {
+            return;
+        }
         await notifications.DispatchAsync(
             run.NodeId,
+            node.ProjectId,
             SubscriptionEventType.RunPaused,
             new NotificationPayload(
                 Title: $"Gate awaiting {evt.GatingRole}",
@@ -50,13 +60,15 @@ public sealed class RunPausedNotificationHandler(IRunRepository runs, INotificat
                 DeepLink: new Uri($"/runs/{evt.RunId.Value:D}/gate", UriKind.Relative),
                 Severity: NotificationSeverity.Warning,
                 RunId: evt.RunId),
-            ct);
+            eventRole: evt.GatingRole,
+            ct: ct);
     }
 }
 
 public sealed class RunCompletedNotificationHandler(
     INotificationService notifications,
-    IRunRepository runs) : IDomainEventHandler<RunCompleted>
+    IRunRepository runs,
+    IFeatureNodeRepository nodes) : IDomainEventHandler<RunCompleted>
 {
     public async Task HandleAsync(RunCompleted evt, CancellationToken ct = default)
     {
@@ -65,8 +77,14 @@ public sealed class RunCompletedNotificationHandler(
         {
             return;
         }
+        var node = await nodes.GetAsync(run.NodeId, ct);
+        if (node is null)
+        {
+            return;
+        }
         await notifications.DispatchAsync(
             run.NodeId,
+            node.ProjectId,
             SubscriptionEventType.RunCompleted,
             new NotificationPayload(
                 Title: "Run completed",
@@ -74,13 +92,15 @@ public sealed class RunCompletedNotificationHandler(
                 DeepLink: new Uri($"/runs/{evt.RunId.Value:D}", UriKind.Relative),
                 Severity: NotificationSeverity.Info,
                 RunId: evt.RunId),
-            ct);
+            eventRole: null,
+            ct: ct);
     }
 }
 
 public sealed class RunFailedNotificationHandler(
     INotificationService notifications,
-    IRunRepository runs) : IDomainEventHandler<RunFailed>
+    IRunRepository runs,
+    IFeatureNodeRepository nodes) : IDomainEventHandler<RunFailed>
 {
     public async Task HandleAsync(RunFailed evt, CancellationToken ct = default)
     {
@@ -89,8 +109,14 @@ public sealed class RunFailedNotificationHandler(
         {
             return;
         }
+        var node = await nodes.GetAsync(run.NodeId, ct);
+        if (node is null)
+        {
+            return;
+        }
         await notifications.DispatchAsync(
             run.NodeId,
+            node.ProjectId,
             SubscriptionEventType.RunFailed,
             new NotificationPayload(
                 Title: "Run failed",
@@ -98,6 +124,7 @@ public sealed class RunFailedNotificationHandler(
                 DeepLink: new Uri($"/runs/{evt.RunId.Value:D}", UriKind.Relative),
                 Severity: NotificationSeverity.Error,
                 RunId: evt.RunId),
-            ct);
+            eventRole: null,
+            ct: ct);
     }
 }

@@ -346,8 +346,17 @@ public sealed class SubscriptionRepository(LoomDbContext db) : ISubscriptionRepo
     public Task<Loom.Domain.Notifications.Subscription?> GetAsync(Loom.Domain.Notifications.SubscriptionId id, CancellationToken ct = default) =>
         db.Subscriptions.FirstOrDefaultAsync(s => s.Id == id, ct);
 
-    public async Task<IReadOnlyList<Loom.Domain.Notifications.Subscription>> FindForEventAsync(NodeId nodeId, Loom.Domain.Notifications.SubscriptionEventType eventType, CancellationToken ct = default) =>
-        await db.Subscriptions.Where(s => s.NodeId == nodeId && s.EventType == eventType).ToListAsync(ct);
+    public async Task<IReadOnlyList<Loom.Domain.Notifications.Subscription>> FindForEventAsync(
+        NodeId nodeId,
+        Guid projectId,
+        Loom.Domain.Notifications.SubscriptionEventType eventType,
+        Loom.Domain.Common.DomainEvents.WorkflowStepGatingRole? eventRole,
+        CancellationToken ct = default) =>
+        await db.Subscriptions
+            .Where(s => s.EventType == eventType
+                && (s.NodeId == nodeId || s.ProjectId == projectId)
+                && (s.Role == null || s.Role == eventRole))
+            .ToListAsync(ct);
 
     public async Task<IReadOnlyList<Loom.Domain.Notifications.Subscription>> ListByUserAsync(Guid userId, CancellationToken ct = default) =>
         await db.Subscriptions.Where(s => s.UserId == userId).OrderByDescending(s => s.UpdatedAt).ToListAsync(ct);

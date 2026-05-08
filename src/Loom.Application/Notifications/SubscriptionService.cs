@@ -1,4 +1,5 @@
 using Loom.Application.Abstractions;
+using Loom.Domain.Common.DomainEvents;
 using Loom.Domain.Nodes;
 using Loom.Domain.Notifications;
 
@@ -9,23 +10,57 @@ public sealed class SubscriptionService(
     IUnitOfWork uow,
     ISystemClock clock) : ISubscriptionService
 {
-    public async Task<Subscription> SubscribeAsync(
+    public async Task<Subscription> SubscribeNodeAsync(
         Guid userId,
         NodeId nodeId,
         SubscriptionEventType eventType,
         SubscriptionChannel channel,
         SubscriptionMode mode,
+        WorkflowStepGatingRole? role = null,
         CancellationToken ct = default)
     {
         var existing = (await subscriptions.ListByUserAsync(userId, ct))
-            .FirstOrDefault(s => s.NodeId == nodeId && s.EventType == eventType && s.Channel == channel);
+            .FirstOrDefault(s =>
+                s.NodeId == nodeId
+                && s.ProjectId == null
+                && s.EventType == eventType
+                && s.Channel == channel
+                && s.Role == role);
         if (existing is not null)
         {
             existing.ChangeMode(mode, clock.UtcNow);
             await uow.SaveChangesAsync(ct);
             return existing;
         }
-        var sub = Subscription.Create(userId, nodeId, eventType, channel, mode, clock.UtcNow);
+        var sub = Subscription.CreateForNode(userId, nodeId, eventType, channel, mode, role, clock.UtcNow);
+        await subscriptions.AddAsync(sub, ct);
+        await uow.SaveChangesAsync(ct);
+        return sub;
+    }
+
+    public async Task<Subscription> SubscribeProjectAsync(
+        Guid userId,
+        Guid projectId,
+        SubscriptionEventType eventType,
+        SubscriptionChannel channel,
+        SubscriptionMode mode,
+        WorkflowStepGatingRole? role = null,
+        CancellationToken ct = default)
+    {
+        var existing = (await subscriptions.ListByUserAsync(userId, ct))
+            .FirstOrDefault(s =>
+                s.NodeId == null
+                && s.ProjectId == projectId
+                && s.EventType == eventType
+                && s.Channel == channel
+                && s.Role == role);
+        if (existing is not null)
+        {
+            existing.ChangeMode(mode, clock.UtcNow);
+            await uow.SaveChangesAsync(ct);
+            return existing;
+        }
+        var sub = Subscription.CreateForProject(userId, projectId, eventType, channel, mode, role, clock.UtcNow);
         await subscriptions.AddAsync(sub, ct);
         await uow.SaveChangesAsync(ct);
         return sub;

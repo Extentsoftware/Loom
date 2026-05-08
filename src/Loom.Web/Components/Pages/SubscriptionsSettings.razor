@@ -1,19 +1,20 @@
 @page "/settings/subscriptions"
 @*
-    Per-user subscription manager. Lists existing subscriptions, lets the
-    user add a row by node id + event-type + channel, and unsubscribe.
-
-    Minimal-viable shape: free-form NodeId entry (paste from the workspace
-    URL). Smart project-tree picker can come later.
+    Per-user subscription manager. Supports two scopes:
+      • Node — paste a node id from the workspace URL.
+      • Project — pick from the project list.
+    Optional Role narrows the match; meaningful for RunPaused events.
 *@
 
 @using Loom.Application.Abstractions
 @using Loom.Application.Notifications
+@using Loom.Domain.Common.DomainEvents
 @using Loom.Domain.Nodes
 @using Loom.Domain.Notifications
 @using Loom.Web.Services
 @inject ISubscriptionService Subs
 @inject IFeatureNodeRepository Nodes
+@inject IProjectRepository Projects
 @inject CurrentUserAccessor CurrentUser
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
@@ -22,9 +23,32 @@
 <section class="ws-section">
     <div class="ws-section-header"><h2>Add subscription</h2></div>
     <div class="form-row">
-        <label>Node id (paste from the workspace URL)</label>
-        <input type="text" @bind="_nodeIdText" placeholder="019df848-aefc-7474-a17b-b64611525585" />
+        <label>Scope</label>
+        <select @bind="_scope">
+            <option value="node">Single node</option>
+            <option value="project">Whole project</option>
+        </select>
     </div>
+    @if (_scope == "node")
+    {
+        <div class="form-row">
+            <label>Node id (paste from the workspace URL)</label>
+            <input type="text" @bind="_nodeIdText" placeholder="019df848-aefc-7474-a17b-b64611525585" />
+        </div>
+    }
+    else
+    {
+        <div class="form-row">
+            <label>Project</label>
+            <select @bind="_projectId">
+                <option value="">— pick a project —</option>
+                @foreach (var p in _projects)
+                {
+                    <option value="@p.Id.ToString()">@p.Name</option>
+                }
+            </select>
+        </div>
+    }
     <div class="form-row">
         <label>Event</label>
         <select @bind="_eventType">
@@ -35,14 +59,23 @@
         </select>
     </div>
     <div class="form-row">
+        <label>Role (only used for "Run paused" gates)</label>
+        <select @bind="_role">
+            <option value="">Any role</option>
+            <option value="@WorkflowStepGatingRole.Po">PO</option>
+            <option value="@WorkflowStepGatingRole.Ux">UX</option>
+            <option value="@WorkflowStepGatingRole.Lead">Lead</option>
+        </select>
+    </div>
+    <div class="form-row">
         <label>Channel</label>
         <select @bind="_channel">
             <option value="@SubscriptionChannel.InApp">In-app</option>
-            <option value="@SubscriptionChannel.Teams">Teams (stub)</option>
+            <option value="@SubscriptionChannel.Teams">Teams</option>
             <option value="@SubscriptionChannel.Email">Email (stub)</option>
         </select>
     </div>
-    <button class="btn-primary" @onclick="AddAsync" disabled="@(string.IsNullOrWhiteSpace(_nodeIdText))">Add</button>
+    <button class="btn-primary" @onclick="AddAsync" disabled="@(!CanAdd())">Add</button>
     @if (!string.IsNullOrEmpty(_error))
     {
         <p class="error">@_error</p>
@@ -59,23 +92,15 @@
     {
         <table class="ws-table">
             <thead>
-                <tr><th>Node</th><th>Event</th><th>Channel</th><th></th></tr>
+                <tr><th>Scope</th><th>Event</th><th>Role</th><th>Channel</th><th></th></tr>
             </thead>
             <tbody>
                 @foreach (var s in _subs)
                 {
                     <tr>
-                        <td>
-                            @if (_nodeTitles.TryGetValue(s.NodeId, out var t))
-                            {
-                                <a href="/n/@s.NodeId.Value">@t</a>
-                            }
-                            else
-                            {
-                                <code>@s.NodeId.Value.ToString("N")</code>
-                            }
-                        </td>
+                        <td>@RenderScope(s)</td>
                         <td>@s.EventType</td>
+                        <td>@(s.Role?.ToString() ?? "any")</td>
                         <td>@s.Channel</td>
                         <td><button class="btn-link" @onclick="() => RemoveAsync(s.Id)">Remove</button></td>
                     </tr>
@@ -87,10 +112,16 @@
 
 @code {
     private readonly List<Subscription> _subs = [];
+    private readonly Dictionary<Guid, string> _projectNames = [];
     private readonly Dictionary<NodeId, string> _nodeTitles = [];
+    private List<Loom.Domain.Nodes.Project> _projects = [];
+
+    private string _scope = "node";
     private string _nodeIdText = string.Empty;
+    private string _projectId = string.Empty;
     private SubscriptionEventType _eventType = SubscriptionEventType.RunPaused;
     private SubscriptionChannel _channel = SubscriptionChannel.InApp;
+    private string _role = string.Empty; // "" | "Po" | "Ux" | "Lead"
     private string? _error;
     private Guid _userId;
 
@@ -102,30 +133,58 @@
 
     private async Task LoadAsync()
     {
+        _projects = (await Projects.ListAsync()).ToList();
+        _projectNames.Clear();
+        foreach (var p in _projects) _projectNames[p.Id] = p.Name;
+
         _subs.Clear();
         _subs.AddRange(await Subs.ListMineAsync(_userId));
+
         _nodeTitles.Clear();
         foreach (var s in _subs)
         {
-            if (_nodeTitles.ContainsKey(s.NodeId)) continue;
-            var n = await Nodes.GetAsync(s.NodeId);
-            if (n is not null) _nodeTitles[s.NodeId] = n.Title;
+            if (s.NodeId is null) continue;
+            if (_nodeTitles.ContainsKey(s.NodeId.Value)) continue;
+            var n = await Nodes.GetAsync(s.NodeId.Value);
+            if (n is not null) _nodeTitles[s.NodeId.Value] = n.Title;
         }
         StateHasChanged();
+    }
+
+    private bool CanAdd()
+    {
+        if (_scope == "node") return !string.IsNullOrWhiteSpace(_nodeIdText);
+        return !string.IsNullOrWhiteSpace(_projectId);
     }
 
     private async Task AddAsync()
     {
         _error = null;
-        if (!Guid.TryParse(_nodeIdText.Trim(), out var nodeGuid))
-        {
-            _error = "That doesn't look like a node id.";
-            return;
-        }
+        WorkflowStepGatingRole? role = string.IsNullOrEmpty(_role)
+            ? null
+            : Enum.Parse<WorkflowStepGatingRole>(_role);
         try
         {
-            await Subs.SubscribeAsync(_userId, new NodeId(nodeGuid), _eventType, _channel, SubscriptionMode.Realtime);
-            _nodeIdText = string.Empty;
+            if (_scope == "node")
+            {
+                if (!Guid.TryParse(_nodeIdText.Trim(), out var nodeGuid))
+                {
+                    _error = "That doesn't look like a node id.";
+                    return;
+                }
+                await Subs.SubscribeNodeAsync(_userId, new NodeId(nodeGuid), _eventType, _channel, SubscriptionMode.Realtime, role);
+                _nodeIdText = string.Empty;
+            }
+            else
+            {
+                if (!Guid.TryParse(_projectId, out var projGuid))
+                {
+                    _error = "Pick a project.";
+                    return;
+                }
+                await Subs.SubscribeProjectAsync(_userId, projGuid, _eventType, _channel, SubscriptionMode.Realtime, role);
+                _projectId = string.Empty;
+            }
             await LoadAsync();
         }
         catch (Exception ex)
@@ -139,4 +198,25 @@
         await Subs.UnsubscribeAsync(id);
         await LoadAsync();
     }
+
+    private RenderFragment RenderScope(Subscription s) => builder =>
+    {
+        var seq = 0;
+        if (s.NodeId is { } n)
+        {
+            var label = _nodeTitles.TryGetValue(n, out var t) ? t : n.Value.ToString("N");
+            builder.OpenElement(seq++, "a");
+            builder.AddAttribute(seq++, "href", $"/n/{n.Value:D}");
+            builder.AddContent(seq++, label);
+            builder.CloseElement();
+        }
+        else if (s.ProjectId is { } p)
+        {
+            var name = _projectNames.TryGetValue(p, out var pn) ? pn : p.ToString("N");
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "badge");
+            builder.AddContent(seq++, $"project: {name}");
+            builder.CloseElement();
+        }
+    };
 }
