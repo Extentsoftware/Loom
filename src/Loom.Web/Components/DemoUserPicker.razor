@@ -1,0 +1,38 @@
+@*
+    Demo-only "view as" picker. Posts the chosen user id to
+    /demo/impersonate, which sets a cookie that
+    DevAuthenticationHandler reads to emit a different principal on
+    the *next* request. The form does a normal full-page POST so the
+    new cookie is in effect for the redirected response — Blazor
+    Server's circuit-scoped principal can't be hot-swapped, so a
+    full nav is the cleanest path.
+*@
+
+@using Loom.Web.Auth
+@using Loom.Web.Services
+@inject CurrentUserAccessor CurrentUser
+@inject NavigationManager Nav
+
+<form method="post" action="/demo/impersonate" class="demo-picker" data-enhance="false">
+    <input type="hidden" name="returnUrl" value="@_returnUrl" />
+    <select name="userId" onchange="this.form.submit()" title="View as (demo only)">
+        @foreach (var u in DevAuthenticationHandler.DemoUsers)
+        {
+            <option value="@u.Id" selected="@(u.Id == _currentId)">@u.Name · @u.Role</option>
+        }
+    </select>
+</form>
+
+@code {
+    private Guid _currentId;
+    private string _returnUrl = "/";
+
+    protected override void OnInitialized()
+    {
+        _currentId = CurrentUser.GetUserId();
+        // Make the relative path absolute-rooted so the controller's
+        // Url.IsLocalUrl check accepts it.
+        var rel = Nav.ToBaseRelativePath(Nav.Uri);
+        _returnUrl = "/" + rel;
+    }
+}

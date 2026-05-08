@@ -1,14 +1,16 @@
 @page "/notifications"
 @*
-    Full notification feed. Lists recent notifications with mark-read and
-    a "mark all read" affordance. Header inherits the app-nav bell badge,
-    so this page is the persistent overflow for users who want to scan
-    the last day or so of activity.
+    Full notification feed. Lists recent notifications with per-row
+    mark-read / open / delete affordances and bulk mark-all-read /
+    clear-all controls. Each mutation goes through its own DI scope so
+    the operation can't race with the page's own load against the
+    circuit-shared DbContext.
 *@
 
 @using Loom.Application.Notifications
 @using Loom.Domain.Notifications
 @using Loom.Web.Services
+@inject IServiceScopeFactory ScopeFactory
 @inject INotificationFeed Feed
 @inject CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
@@ -19,7 +21,10 @@
 <section class="ws-section">
     <div class="ws-section-header">
         <h2>Recent</h2>
-        <button class="btn-secondary" @onclick="MarkAllReadAsync" disabled="@(_unread == 0)">Mark all read (@_unread)</button>
+        <div style="display:flex; gap:.5rem;">
+            <button class="btn-secondary" @onclick="MarkAllReadAsync" disabled="@(_unread == 0)">Mark all read (@_unread)</button>
+            <button class="btn-secondary" @onclick="ClearAllAsync" disabled="@(_items.Count == 0)">Clear all</button>
+        </div>
     </div>
 
     @if (_items.Count == 0)
@@ -40,10 +45,11 @@
                         {
                             <button class="btn-link" @onclick="() => OpenAsync(n)">Open</button>
                         }
-                        else if (n.ReadAt is null)
+                        @if (n.ReadAt is null)
                         {
                             <button class="btn-link" @onclick="() => MarkReadAsync(n)">Mark read</button>
                         }
+                        <button class="btn-link" @onclick="() => DeleteAsync(n)" title="Delete this notification">Delete</button>
                     </div>
                 </li>
             }
@@ -70,21 +76,45 @@
         StateHasChanged();
     }
 
+    // Each mutation runs in its own scope so it doesn't race the
+    // circuit-shared DbContext (mark-as-read used to silently lose to
+    // a concurrent LoadAsync; deletion has the same risk).
+    private async Task RunInScope(Func<INotificationFeed, Task> op)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var feed = scope.ServiceProvider.GetRequiredService<INotificationFeed>();
+        await op(feed);
+    }
+
     private async Task MarkAllReadAsync()
     {
-        await Feed.MarkAllReadAsync(_userId);
+        await RunInScope(f => f.MarkAllReadAsync(_userId));
+        await LoadAsync();
+    }
+
+    private async Task ClearAllAsync()
+    {
+        await RunInScope(f => f.DeleteAllAsync(_userId));
         await LoadAsync();
     }
 
     private async Task MarkReadAsync(Notification n)
     {
-        await Feed.MarkReadAsync(n.Id, _userId);
+        await RunInScope(f => f.MarkReadAsync(n.Id, _userId));
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Notification n)
+    {
+        await RunInScope(f => f.DeleteAsync(n.Id, _userId));
         await LoadAsync();
     }
 
     private async Task OpenAsync(Notification n)
     {
-        await Feed.MarkReadAsync(n.Id, _userId);
+        // Mark-read must commit before the navigation kicks off the next
+        // request; the in-scope await guarantees that.
+        await RunInScope(f => f.MarkReadAsync(n.Id, _userId));
         Nav.NavigateTo(n.DeepLink!);
     }
 }

@@ -130,6 +130,27 @@ public sealed class Subscription
         return new Subscription(SubscriptionId.New(), userId, nodeId: null, projectId, eventType, channel, mode, role, now);
     }
 
+    /// <summary>
+    /// Subscribe to events of this kind anywhere in Loom — no node or
+    /// project constraint. Useful for system-wide listeners (admins,
+    /// "page me on any failure" rules). Both NodeId and ProjectId are
+    /// null on the resulting row.
+    /// </summary>
+    public static Subscription CreateGlobal(
+        Guid userId,
+        SubscriptionEventType eventType,
+        SubscriptionChannel channel,
+        SubscriptionMode mode,
+        WorkflowStepGatingRole? role,
+        DateTimeOffset now)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new DomainException("UserId is required.");
+        }
+        return new Subscription(SubscriptionId.New(), userId, nodeId: null, projectId: null, eventType, channel, mode, role, now);
+    }
+
     public void ChangeMode(SubscriptionMode mode, DateTimeOffset now)
     {
         if (Mode == mode)

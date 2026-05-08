@@ -70,13 +70,30 @@ else
                 <button class="btn-secondary" @onclick="ArchiveAsync" disabled="@_archivingBusy">
                     @(_archivingBusy ? "Archiving…" : "Archive")
                 </button>
-                <button class="btn-secondary" @onclick="RunWireframingAsync" disabled="@_wireframingBusy" title="Generate a wireframe for UX review">
-                    @(_wireframingBusy ? "Starting…" : "Run wireframing")
+                <button class="btn-secondary" @onclick="@(() => RunWorkflowAsync(Loom.Application.Workflows.Wireframing.WireframingWorkflowFactory.WorkflowKey))"
+                        disabled="@_workflowBusy" title="Generate a wireframe for UX review">
+                    Run wireframing
+                </button>
+                <button class="btn-secondary" @onclick="@(() => RunWorkflowAsync(Loom.Application.Workflows.Engineering.SliceDesignWorkflowFactory.WorkflowKey))"
+                        disabled="@_workflowBusy" title="Propose a slice design for tech-lead review">
+                    Run slice design
+                </button>
+                <button class="btn-secondary" @onclick="@(() => RunWorkflowAsync(Loom.Application.Workflows.Engineering.BuildWorkflowFactory.WorkflowKey))"
+                        disabled="@_workflowBusy" title="Propose an implementation plan for the assigned dev">
+                    Run build
+                </button>
+                <button class="btn-secondary" @onclick="@(() => RunWorkflowAsync(Loom.Application.Workflows.Engineering.TestPlanWorkflowFactory.WorkflowKey))"
+                        disabled="@_workflowBusy" title="Derive a test plan from the acceptance criteria">
+                    Run test plan
                 </button>
             }
-            @if (_wireframingError is not null)
+            @if (_workflowBusy)
             {
-                <span class="error" style="margin-left:.5rem;">@_wireframingError</span>
+                <span class="muted" style="margin-left:.5rem;">Starting…</span>
+            }
+            @if (_workflowError is not null)
+            {
+                <span class="error" style="margin-left:.5rem;">@_workflowError</span>
             }
         </p>
     </header>
@@ -664,35 +681,31 @@ else
         await LoadAsync();
     }
 
-    private bool _wireframingBusy;
-    private string? _wireframingError;
-    private async Task RunWireframingAsync()
+    private bool _workflowBusy;
+    private string? _workflowError;
+    private async Task RunWorkflowAsync(string workflowKey)
     {
         if (_view is null) return;
-        _wireframingBusy = true;
-        _wireframingError = null;
+        _workflowBusy = true;
+        _workflowError = null;
         var nodeId = _view.NodeId;
         try
         {
             // Resolve the workflow inside its own scope so the long-running
             // agent call doesn't share a DbContext with the page's render
-            // pipeline (which races against SignalR-driven re-renders and
-            // the bell's refresh cycle).
+            // pipeline.
             await using var scope = ScopeFactory.CreateAsyncScope();
             var workflows = scope.ServiceProvider.GetRequiredService<IWorkflowRepository>();
             var engine = scope.ServiceProvider.GetRequiredService<IWorkflowEngine>();
 
-            var workflow = await workflows.GetCurrentByKeyAsync(
-                Loom.Domain.Common.Slug.From(
-                    Loom.Application.Workflows.Wireframing.WireframingWorkflowFactory.WorkflowKey));
+            var workflow = await workflows.GetCurrentByKeyAsync(Loom.Domain.Common.Slug.From(workflowKey));
             if (workflow is null)
             {
-                _wireframingError = "Wireframing workflow isn't seeded; restart the host so the bootstrapper can create it.";
+                _workflowError = $"Workflow '{workflowKey}' isn't seeded; restart the host so the bootstrapper can create it.";
                 return;
             }
 
-            var pausedAt = await engine.StartAsync(
-                nodeId, workflow.Id, new Dictionary<string, string>());
+            var pausedAt = await engine.StartAsync(nodeId, workflow.Id, new Dictionary<string, string>());
 
             if (pausedAt is not null)
             {
@@ -703,11 +716,11 @@ else
         }
         catch (Exception ex)
         {
-            _wireframingError = ex.Message;
+            _workflowError = ex.Message;
         }
         finally
         {
-            _wireframingBusy = false;
+            _workflowBusy = false;
         }
     }
 

@@ -354,7 +354,9 @@ public sealed class SubscriptionRepository(LoomDbContext db) : ISubscriptionRepo
         CancellationToken ct = default) =>
         await db.Subscriptions
             .Where(s => s.EventType == eventType
-                && (s.NodeId == nodeId || s.ProjectId == projectId)
+                && (s.NodeId == nodeId
+                    || s.ProjectId == projectId
+                    || (s.NodeId == null && s.ProjectId == null))   // any-project / global
                 && (s.Role == null || s.Role == eventRole))
             .ToListAsync(ct);
 
@@ -397,6 +399,12 @@ public sealed class NotificationRepository(LoomDbContext db) : INotificationRepo
 
     public Task<int> UnreadCountAsync(Guid userId, CancellationToken ct = default) =>
         db.Notifications.CountAsync(n => n.UserId == userId && n.ReadAt == null, ct);
+
+    public void Remove(Loom.Domain.Notifications.Notification notification) =>
+        db.Notifications.Remove(notification);
+
+    public async Task<int> DeleteAllForUserAsync(Guid userId, CancellationToken ct = default) =>
+        await db.Notifications.Where(n => n.UserId == userId).ExecuteDeleteAsync(ct);
 }
 
 public sealed class ProjectBudgetRepository(LoomDbContext db) : IProjectBudgetRepository

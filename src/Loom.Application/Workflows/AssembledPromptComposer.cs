@@ -182,6 +182,84 @@ public sealed class AssembledPromptComposer : IAssembledPromptComposer
                 - 3–8 items typical.
                 - Do NOT wrap the JSON in markdown fences.
                 """,
+            "SliceDesign" =>
+                """
+                Output strict JSON matching the SliceDesign schema EXACTLY:
+
+                {
+                  "summary":   "<one-paragraph plain-English summary of the slice>",
+                  "data_model": [
+                    { "entity": "<TypeName>",
+                      "fields": [
+                        { "name": "<fieldName>", "type": "<string|int|Guid|…>", "notes": "<optional>" }
+                      ],
+                      "rationale": "<why this shape>" }
+                  ],
+                  "endpoints": [
+                    { "verb":     "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+                      "route":    "/api/...",
+                      "purpose":  "<what it does>",
+                      "request":  "<request shape or null>",
+                      "response": "<response shape or null>" }
+                  ],
+                  "handlers": [
+                    { "name": "<HandlerName>", "purpose": "<single sentence>" }
+                  ],
+                  "open_questions": [ "<question 1>", "<question 2>" ]
+                }
+
+                Hard rules:
+                - Top-level JSON object with exactly the keys above; arrays may be empty but must be present.
+                - Do NOT wrap the JSON in markdown fences.
+                - Be specific to the node's intent and acceptance criteria; do not invent unrelated entities.
+                """,
+            "ImplementationPlan" =>
+                """
+                Output strict JSON matching the ImplementationPlan schema EXACTLY:
+
+                {
+                  "summary": "<one-paragraph plain-English summary of the build approach>",
+                  "steps": [
+                    { "ordinal":     1,
+                      "title":       "<short imperative step title>",
+                      "files":       [ "<path/to/File.cs>", "<path/to/Other.cs>" ],
+                      "rationale":   "<one-sentence why>",
+                      "verification":"<how the dev confirms this step is done — test, build, manual check>" }
+                  ],
+                  "risks":       [ "<technical risk to keep an eye on>" ],
+                  "open_questions": [ "<question for the slice designer or PO>" ]
+                }
+
+                Hard rules:
+                - Top-level JSON object with exactly the keys above.
+                - 3–10 steps typical; ordinals start at 1 and are contiguous.
+                - "files" lists realistic relative paths the dev will touch.
+                - Do NOT wrap the JSON in markdown fences.
+                """,
+            "TestPlan" =>
+                """
+                Output strict JSON matching the TestPlan schema EXACTLY:
+
+                {
+                  "summary": "<one-paragraph plain-English coverage summary>",
+                  "cases": [
+                    { "id":            "TC-001",
+                      "title":         "<short imperative title>",
+                      "level":         "unit" | "integration" | "e2e",
+                      "given":         "<precondition>",
+                      "when":          "<action>",
+                      "then":          "<expected outcome>",
+                      "criterion_ref": "<acceptance-criterion id or text fragment, or null>" }
+                  ],
+                  "gaps": [ "<area the agent could not cover and why>" ]
+                }
+
+                Hard rules:
+                - Top-level JSON object with exactly the keys above.
+                - Test ids are TC-NNN starting at TC-001, contiguous, zero-padded to three digits.
+                - Levels must be one of: unit, integration, e2e.
+                - Do NOT wrap the JSON in markdown fences.
+                """,
             _ => null
         };
         if (instruction is null)

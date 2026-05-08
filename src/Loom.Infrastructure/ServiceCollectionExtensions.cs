@@ -144,6 +144,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStepOutputProjector, AcceptanceCriteriaProjector>();
         services.AddScoped<IStepOutputProjector, RiskRegisterProjector>();
         services.AddScoped<IStepOutputProjector, Loom.Application.Workflows.Wireframing.WireframeProjector>();
+        services.AddScoped<IStepOutputProjector, Loom.Application.Workflows.Engineering.SliceDesignProjector>();
+        services.AddScoped<IStepOutputProjector, Loom.Application.Workflows.Engineering.ImplementationPlanProjector>();
+        services.AddScoped<IStepOutputProjector, Loom.Application.Workflows.Engineering.TestPlanProjector>();
 
         // Kickoff-acceptance orchestration (transactional accept-decompose).
         services.AddScoped<Loom.Application.Workflows.Kickoff.IKickoffService, Loom.Application.Workflows.Kickoff.KickoffService>();

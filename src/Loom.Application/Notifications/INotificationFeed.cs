@@ -20,4 +20,11 @@ public interface INotificationFeed
 
     /// <summary>Mark every unread notification for the user as read.</summary>
     Task MarkAllReadAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Delete a single notification owned by the requesting user.
+    /// No-op if the row is missing or owned by someone else.</summary>
+    Task DeleteAsync(NotificationId id, Guid userId, CancellationToken ct = default);
+
+    /// <summary>Delete every notification (read and unread) for the user.</summary>
+    Task DeleteAllAsync(Guid userId, CancellationToken ct = default);
 }

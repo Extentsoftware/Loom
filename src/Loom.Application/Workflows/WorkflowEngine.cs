@@ -377,6 +377,7 @@ public sealed class WorkflowEngine(
         WorkflowStepGating.HumanPo => WorkflowStepGatingRole.Po,
         WorkflowStepGating.HumanUx => WorkflowStepGatingRole.Ux,
         WorkflowStepGating.HumanLead => WorkflowStepGatingRole.Lead,
+        WorkflowStepGating.HumanDev => WorkflowStepGatingRole.Dev,
         _ => throw new DomainException($"Cannot map gating '{gating}' to a human role.")
     };
 

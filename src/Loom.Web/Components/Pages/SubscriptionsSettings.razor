@@ -27,6 +27,7 @@
         <select @bind="_scope">
             <option value="node">Single node</option>
             <option value="project">Whole project</option>
+            <option value="any">Any project (global)</option>
         </select>
     </div>
     @if (_scope == "node")
@@ -36,7 +37,7 @@
             <input type="text" @bind="_nodeIdText" placeholder="019df848-aefc-7474-a17b-b64611525585" />
         </div>
     }
-    else
+    else if (_scope == "project")
     {
         <div class="form-row">
             <label>Project</label>
@@ -48,6 +49,10 @@
                 }
             </select>
         </div>
+    }
+    else
+    {
+        <p class="muted">Fires for every matching event across every project. Combine with a Role to narrow (e.g. "any UX gate anywhere").</p>
     }
     <div class="form-row">
         <label>Event</label>
@@ -65,6 +70,7 @@
             <option value="@WorkflowStepGatingRole.Po">PO</option>
             <option value="@WorkflowStepGatingRole.Ux">UX</option>
             <option value="@WorkflowStepGatingRole.Lead">Lead</option>
+            <option value="@WorkflowStepGatingRole.Dev">Dev</option>
         </select>
     </div>
     <div class="form-row">
@@ -154,7 +160,8 @@
     private bool CanAdd()
     {
         if (_scope == "node") return !string.IsNullOrWhiteSpace(_nodeIdText);
-        return !string.IsNullOrWhiteSpace(_projectId);
+        if (_scope == "project") return !string.IsNullOrWhiteSpace(_projectId);
+        return true; // "any" scope has no further inputs
     }
 
     private async Task AddAsync()
@@ -175,7 +182,7 @@
                 await Subs.SubscribeNodeAsync(_userId, new NodeId(nodeGuid), _eventType, _channel, SubscriptionMode.Realtime, role);
                 _nodeIdText = string.Empty;
             }
-            else
+            else if (_scope == "project")
             {
                 if (!Guid.TryParse(_projectId, out var projGuid))
                 {
@@ -184,6 +191,10 @@
                 }
                 await Subs.SubscribeProjectAsync(_userId, projGuid, _eventType, _channel, SubscriptionMode.Realtime, role);
                 _projectId = string.Empty;
+            }
+            else
+            {
+                await Subs.SubscribeGlobalAsync(_userId, _eventType, _channel, SubscriptionMode.Realtime, role);
             }
             await LoadAsync();
         }
@@ -216,6 +227,13 @@
             builder.OpenElement(seq++, "span");
             builder.AddAttribute(seq++, "class", "badge");
             builder.AddContent(seq++, $"project: {name}");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "badge");
+            builder.AddContent(seq++, "any project");
             builder.CloseElement();
         }
     };

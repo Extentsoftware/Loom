@@ -189,30 +189,39 @@ else if ((_step.Key == KickoffWorkflowFactory.DiscoveryStepKey ||
 
     <RunTimeline RunId="_run.Id" />
 }
-else if (_step.Gating == Loom.Domain.Workflows.WorkflowStepGating.HumanUx)
+else if (_step.Gating == Loom.Domain.Workflows.WorkflowStepGating.HumanUx
+      || _step.Gating == Loom.Domain.Workflows.WorkflowStepGating.HumanLead
+      || _step.Gating == Loom.Domain.Workflows.WorkflowStepGating.HumanDev)
 {
+    var gateLabel = _step.Gating switch
+    {
+        Loom.Domain.Workflows.WorkflowStepGating.HumanUx   => ("UX",   "Proposed wireframe", "wireframe"),
+        Loom.Domain.Workflows.WorkflowStepGating.HumanLead => ("Lead", "Proposed slice design", "slice-design doc"),
+        Loom.Domain.Workflows.WorkflowStepGating.HumanDev  => ("Dev",  "Proposed implementation plan", "implementation plan doc"),
+        _ => ("Human", "Artifact", "artifact")
+    };
     <header class="page-head">
         <p class="page-meta">
             <a href="@($"/n/{_targetNodeId!.Value.Value:D}")">← Target node</a>
         </p>
-        <h1 class="page-title">UX <em>review</em></h1>
+        <h1 class="page-title">@gateLabel.Item1 <em>review</em></h1>
         <p class="page-meta">
             Step: <strong>@_step.Key</strong> · Gating: <strong>@_step.Gating</strong>
         </p>
     </header>
 
     <section class="ws-section">
-        <h2>Proposed wireframe</h2>
-        @if (_wireframeArtifactId is Guid wfId)
+        <h2>@gateLabel.Item2</h2>
+        @if (_reviewArtifactId is Guid revId)
         {
             <p>
-                <a href="@($"/artifacts/{wfId:D}")">Open in Artifact Inspector →</a>
+                <a href="@($"/artifacts/{revId:D}")">Open in Artifact Inspector →</a>
             </p>
             <p class="muted">Annotations and version history live on the inspector. Approve once you're satisfied with the proposal.</p>
         }
         else
         {
-            <p class="muted">No wireframe artifact found for this node yet. The propose-wireframe step may still be running.</p>
+            <p class="muted">No @gateLabel.Item3 found for this node yet. The propose step may still be running.</p>
         }
     </section>
 
@@ -255,7 +264,7 @@ else
     private string? _rawAgentOutput;
     private DiscoveryEditModel _discoveryEdit = new();
     private DecomposeEditModel _proposalEdits = new();
-    private Guid? _wireframeArtifactId;
+    private Guid? _reviewArtifactId;
     private string? _uxNote;
     private bool _busy;
     private string? _error;
@@ -332,14 +341,23 @@ else
             }
         }
 
-        // For UX gates we don't parse JSON; the wireframe artifact has
-        // already been projected onto the node by WireframeProjector.
+        // For artifact-review gates (UX / Lead / Dev) we don't parse JSON;
+        // the relevant artifact has already been projected onto the node.
         // Look it up so the page can deep-link into the inspector.
-        if (_step is not null && _step.Gating == Loom.Domain.Workflows.WorkflowStepGating.HumanUx && _targetNodeId is not null)
+        if (_step is not null && _targetNodeId is not null)
         {
             var artifacts = await ArtifactRepo.GetByNodeAsync(_targetNodeId.Value);
-            var wireframe = artifacts.FirstOrDefault(a => a.Kind == Loom.Domain.Artifacts.ArtifactKind.Wireframe);
-            _wireframeArtifactId = wireframe?.Id.Value;
+            Loom.Domain.Artifacts.Artifact? match = _step.Gating switch
+            {
+                Loom.Domain.Workflows.WorkflowStepGating.HumanUx =>
+                    artifacts.FirstOrDefault(a => a.Kind == Loom.Domain.Artifacts.ArtifactKind.Wireframe),
+                Loom.Domain.Workflows.WorkflowStepGating.HumanLead =>
+                    artifacts.FirstOrDefault(a => a.Kind == Loom.Domain.Artifacts.ArtifactKind.Doc && a.Title == "Slice design"),
+                Loom.Domain.Workflows.WorkflowStepGating.HumanDev =>
+                    artifacts.FirstOrDefault(a => a.Kind == Loom.Domain.Artifacts.ArtifactKind.Doc && a.Title == "Implementation plan"),
+                _ => null
+            };
+            _reviewArtifactId = match?.Id.Value;
         }
 
         _loaded = true;

@@ -63,5 +63,6 @@ public enum WorkflowStepGatingRole
 {
     Po = 1,
     Ux = 2,
-    Lead = 3
+    Lead = 3,
+    Dev = 4
 }

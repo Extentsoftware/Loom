@@ -73,6 +73,12 @@ else
                 case Loom.Domain.Artifacts.ArtifactKind.Risks:
                     @RenderRisks(_artifact.Canonical.ExternalId)
                     break;
+                case Loom.Domain.Artifacts.ArtifactKind.Doc:
+                    @RenderDoc(_artifact.Title, _artifact.Canonical.ExternalId)
+                    break;
+                case Loom.Domain.Artifacts.ArtifactKind.TestPlan:
+                    @RenderTestPlan(_artifact.Canonical.ExternalId)
+                    break;
                 default:
                     <pre class="prompt-block">@_artifact.Canonical.ExternalId</pre>
                     break;
@@ -405,6 +411,232 @@ else
             return list;
         }
         catch (System.Text.Json.JsonException) { return null; }
+    }
+
+    // -------- Doc renderer (slice design or implementation plan) --------
+    // Detects which schema by inspecting the JSON shape and dispatches to
+    // a specific renderer. Falls through to a <pre> if neither matches.
+    private RenderFragment RenderDoc(string title, string body) => builder =>
+    {
+        System.Text.Json.JsonDocument? doc = null;
+        try { doc = System.Text.Json.JsonDocument.Parse(body); } catch (System.Text.Json.JsonException) { }
+        if (doc is not null)
+        {
+            using (doc)
+            {
+                var root = doc.RootElement;
+                if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    if (root.TryGetProperty("data_model", out _) || root.TryGetProperty("endpoints", out _))
+                    {
+                        builder.AddContent(0, RenderSliceDesign(root));
+                        return;
+                    }
+                    if (root.TryGetProperty("steps", out _))
+                    {
+                        builder.AddContent(0, RenderImplementationPlan(root));
+                        return;
+                    }
+                }
+            }
+        }
+        builder.OpenElement(10, "pre");
+        builder.AddAttribute(11, "class", "prompt-block");
+        builder.AddContent(12, body);
+        builder.CloseElement();
+    };
+
+    private static string GetString(System.Text.Json.JsonElement el, string name) =>
+        el.TryGetProperty(name, out var p) && p.ValueKind == System.Text.Json.JsonValueKind.String
+            ? (p.GetString() ?? string.Empty) : string.Empty;
+
+    private RenderFragment RenderSliceDesign(System.Text.Json.JsonElement root) => builder =>
+    {
+        var seq = 0;
+        var summary = GetString(root, "summary");
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            builder.OpenElement(seq++, "p"); builder.AddContent(seq++, summary); builder.CloseElement();
+        }
+
+        if (root.TryGetProperty("data_model", out var dm) && dm.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Data model"); builder.CloseElement();
+            foreach (var entity in dm.EnumerateArray())
+            {
+                builder.OpenElement(seq++, "h4");
+                builder.AddContent(seq++, GetString(entity, "entity"));
+                builder.CloseElement();
+                var rationale = GetString(entity, "rationale");
+                if (!string.IsNullOrWhiteSpace(rationale))
+                {
+                    builder.OpenElement(seq++, "p"); builder.AddAttribute(seq++, "class", "muted");
+                    builder.AddContent(seq++, rationale); builder.CloseElement();
+                }
+                if (entity.TryGetProperty("fields", out var fields) && fields.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    builder.OpenElement(seq++, "table"); builder.AddAttribute(seq++, "class", "ws-table");
+                    builder.OpenElement(seq++, "thead"); builder.OpenElement(seq++, "tr");
+                    foreach (var h in new[] { "Name", "Type", "Notes" })
+                    { builder.OpenElement(seq++, "th"); builder.AddContent(seq++, h); builder.CloseElement(); }
+                    builder.CloseElement(); builder.CloseElement();
+                    builder.OpenElement(seq++, "tbody");
+                    foreach (var f in fields.EnumerateArray())
+                    {
+                        builder.OpenElement(seq++, "tr");
+                        foreach (var v in new[] { GetString(f, "name"), GetString(f, "type"), GetString(f, "notes") })
+                        { builder.OpenElement(seq++, "td"); builder.AddContent(seq++, v); builder.CloseElement(); }
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement(); builder.CloseElement();
+                }
+            }
+        }
+
+        if (root.TryGetProperty("endpoints", out var eps) && eps.ValueKind == System.Text.Json.JsonValueKind.Array && eps.GetArrayLength() > 0)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Endpoints"); builder.CloseElement();
+            builder.OpenElement(seq++, "table"); builder.AddAttribute(seq++, "class", "ws-table");
+            builder.OpenElement(seq++, "thead"); builder.OpenElement(seq++, "tr");
+            foreach (var h in new[] { "Verb", "Route", "Purpose", "Request", "Response" })
+            { builder.OpenElement(seq++, "th"); builder.AddContent(seq++, h); builder.CloseElement(); }
+            builder.CloseElement(); builder.CloseElement();
+            builder.OpenElement(seq++, "tbody");
+            foreach (var e in eps.EnumerateArray())
+            {
+                builder.OpenElement(seq++, "tr");
+                foreach (var v in new[] { GetString(e, "verb"), GetString(e, "route"), GetString(e, "purpose"), GetString(e, "request"), GetString(e, "response") })
+                { builder.OpenElement(seq++, "td"); builder.AddContent(seq++, v); builder.CloseElement(); }
+                builder.CloseElement();
+            }
+            builder.CloseElement(); builder.CloseElement();
+        }
+
+        if (root.TryGetProperty("handlers", out var hs) && hs.ValueKind == System.Text.Json.JsonValueKind.Array && hs.GetArrayLength() > 0)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Handlers"); builder.CloseElement();
+            builder.OpenElement(seq++, "ul");
+            foreach (var h in hs.EnumerateArray())
+            {
+                builder.OpenElement(seq++, "li");
+                builder.OpenElement(seq++, "strong"); builder.AddContent(seq++, GetString(h, "name")); builder.CloseElement();
+                builder.AddContent(seq++, " — " + GetString(h, "purpose"));
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+
+        RenderQuestionList(builder, ref seq, root, "open_questions", "Open questions");
+    };
+
+    private RenderFragment RenderImplementationPlan(System.Text.Json.JsonElement root) => builder =>
+    {
+        var seq = 0;
+        var summary = GetString(root, "summary");
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            builder.OpenElement(seq++, "p"); builder.AddContent(seq++, summary); builder.CloseElement();
+        }
+
+        if (root.TryGetProperty("steps", out var steps) && steps.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Steps"); builder.CloseElement();
+            builder.OpenElement(seq++, "ol");
+            foreach (var s in steps.EnumerateArray())
+            {
+                builder.OpenElement(seq++, "li");
+                builder.OpenElement(seq++, "strong"); builder.AddContent(seq++, GetString(s, "title")); builder.CloseElement();
+                var rationale = GetString(s, "rationale");
+                if (!string.IsNullOrWhiteSpace(rationale))
+                {
+                    builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "muted");
+                    builder.AddContent(seq++, rationale); builder.CloseElement();
+                }
+                if (s.TryGetProperty("files", out var files) && files.ValueKind == System.Text.Json.JsonValueKind.Array && files.GetArrayLength() > 0)
+                {
+                    builder.OpenElement(seq++, "div");
+                    builder.AddContent(seq++, "Files: ");
+                    var first = true;
+                    foreach (var f in files.EnumerateArray())
+                    {
+                        if (!first) builder.AddContent(seq++, ", ");
+                        first = false;
+                        builder.OpenElement(seq++, "code"); builder.AddContent(seq++, f.GetString() ?? string.Empty); builder.CloseElement();
+                    }
+                    builder.CloseElement();
+                }
+                var verify = GetString(s, "verification");
+                if (!string.IsNullOrWhiteSpace(verify))
+                {
+                    builder.OpenElement(seq++, "div"); builder.AddContent(seq++, "Verify: " + verify); builder.CloseElement();
+                }
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+
+        RenderQuestionList(builder, ref seq, root, "risks", "Technical risks");
+        RenderQuestionList(builder, ref seq, root, "open_questions", "Open questions");
+    };
+
+    private RenderFragment RenderTestPlan(string body) => builder =>
+    {
+        System.Text.Json.JsonDocument? doc = null;
+        try { doc = System.Text.Json.JsonDocument.Parse(body); } catch (System.Text.Json.JsonException) { }
+        if (doc is null)
+        {
+            builder.OpenElement(0, "pre");
+            builder.AddAttribute(1, "class", "prompt-block");
+            builder.AddContent(2, body);
+            builder.CloseElement();
+            return;
+        }
+        using (doc)
+        {
+            var root = doc.RootElement;
+            var seq = 0;
+            var summary = GetString(root, "summary");
+            if (!string.IsNullOrWhiteSpace(summary))
+            {
+                builder.OpenElement(seq++, "p"); builder.AddContent(seq++, summary); builder.CloseElement();
+            }
+            if (root.TryGetProperty("cases", out var cases) && cases.ValueKind == System.Text.Json.JsonValueKind.Array && cases.GetArrayLength() > 0)
+            {
+                builder.OpenElement(seq++, "table"); builder.AddAttribute(seq++, "class", "ws-table");
+                builder.OpenElement(seq++, "thead"); builder.OpenElement(seq++, "tr");
+                foreach (var h in new[] { "ID", "Title", "Level", "Given", "When", "Then" })
+                { builder.OpenElement(seq++, "th"); builder.AddContent(seq++, h); builder.CloseElement(); }
+                builder.CloseElement(); builder.CloseElement();
+                builder.OpenElement(seq++, "tbody");
+                foreach (var c in cases.EnumerateArray())
+                {
+                    builder.OpenElement(seq++, "tr");
+                    foreach (var v in new[] { GetString(c, "id"), GetString(c, "title"), GetString(c, "level"),
+                                              GetString(c, "given"), GetString(c, "when"), GetString(c, "then") })
+                    { builder.OpenElement(seq++, "td"); builder.AddContent(seq++, v); builder.CloseElement(); }
+                    builder.CloseElement();
+                }
+                builder.CloseElement(); builder.CloseElement();
+            }
+            RenderQuestionList(builder, ref seq, root, "gaps", "Coverage gaps");
+        }
+    };
+
+    private static void RenderQuestionList(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq,
+        System.Text.Json.JsonElement root, string property, string heading)
+    {
+        if (!root.TryGetProperty(property, out var arr) || arr.ValueKind != System.Text.Json.JsonValueKind.Array || arr.GetArrayLength() == 0)
+        {
+            return;
+        }
+        builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, heading); builder.CloseElement();
+        builder.OpenElement(seq++, "ul");
+        foreach (var q in arr.EnumerateArray())
+        {
+            if (q.ValueKind != System.Text.Json.JsonValueKind.String) continue;
+            builder.OpenElement(seq++, "li"); builder.AddContent(seq++, q.GetString()); builder.CloseElement();
+        }
+        builder.CloseElement();
     }
 
     [Parameter] public Guid ArtifactId { get; set; }
