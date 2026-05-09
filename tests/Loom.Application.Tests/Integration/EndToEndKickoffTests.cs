@@ -85,7 +85,7 @@ public sealed class EndToEndKickoffTests
         var inProcSteps = new IInProcStep[] { new TranscriptNormalizeStep() };
 
         var engine = new WorkflowEngine(
-            nodes, workflows, fragmentService, composer, runService,
+            nodes, workflows, fragmentService, new FakeProjectArtifactService(), composer, runService,
             runs, router, inProcSteps, projectors: [], new InMemoryEngineHealthMonitor(), events, clock);
 
         // Seed the kickoff workflow + a project + the placeholder root node.

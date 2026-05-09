@@ -227,3 +227,19 @@ public sealed class FakeArtifactRepository : IArtifactRepository
     public Task<IReadOnlyList<Artifact>> GetByNodeAsync(NodeId nodeId, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<Artifact>>([]);
 }
+
+public sealed class FakeProjectArtifactService : Loom.Application.Artifacts.IProjectArtifactService
+{
+    public Task<ProjectArtifact> AttachLinkAsync(Guid projectId, NodeId? nodeId, ProjectArtifactKind kind,
+        string label, string url, string? description, Guid? createdByUserId, CancellationToken ct = default) =>
+        throw new NotImplementedException();
+
+    public Task<ProjectArtifact> AttachFileAsync(Guid projectId, NodeId? nodeId, ProjectArtifactKind kind,
+        string label, Loom.Application.Artifacts.ArtifactBundle bundle, string? description,
+        Guid? createdByUserId, CancellationToken ct = default) => throw new NotImplementedException();
+
+    public Task<IReadOnlyList<ProjectArtifact>> ListForFeatureAsync(Guid projectId, NodeId? nodeId,
+        CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ProjectArtifact>>([]);
+
+    public Task RemoveAsync(ProjectArtifactId id, CancellationToken ct = default) => Task.CompletedTask;
+}

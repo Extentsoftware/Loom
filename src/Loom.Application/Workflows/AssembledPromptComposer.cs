@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Loom.Application.Fragments;
+using Loom.Domain.Artifacts;
 using Loom.Domain.Fragments;
 using Loom.Domain.Runs;
 using Loom.Domain.Workflows;
@@ -41,6 +42,7 @@ public sealed class AssembledPromptComposer : IAssembledPromptComposer
         }
 
         AppendNodeContext(systemBuilder, nodeContext);
+        AppendProjectArtifacts(systemBuilder, nodeContext);
 
         // If the step declares an OutputSchemaName the runtime forces JSON
         // mode, but the agent still needs to know the *shape* of that JSON.
@@ -122,6 +124,37 @@ public sealed class AssembledPromptComposer : IAssembledPromptComposer
             foreach (var q in ctx.OpenQuestions)
             {
                 sb.Append("  - ").AppendLine(q);
+            }
+        }
+        sb.AppendLine();
+    }
+
+    private static void AppendProjectArtifacts(StringBuilder sb, NodeContext ctx)
+    {
+        if (ctx.ProjectArtifacts.Count == 0)
+        {
+            return;
+        }
+
+        var inv = CultureInfo.InvariantCulture;
+        sb.AppendLine("## Project artifacts");
+        sb.AppendLine("Reference material attached to this project (and any feature-scoped");
+        sb.AppendLine("seeds). Links are open via their URL; file uploads are addressable via");
+        sb.AppendLine("the MCP get_artifact tool using their loom-artifact:// URI.");
+        sb.AppendLine();
+        foreach (var a in ctx.ProjectArtifacts)
+        {
+            if (a.Payload == ProjectArtifactPayload.Link)
+            {
+                sb.AppendLine(inv, $"- [{a.Kind}] {a.Label} — {a.Url}");
+            }
+            else
+            {
+                sb.AppendLine(inv, $"- [{a.Kind}] {a.Label} — {a.BlobUri} ({a.ContentType ?? "unknown"})");
+            }
+            if (!string.IsNullOrWhiteSpace(a.Description))
+            {
+                sb.Append("  ").AppendLine(a.Description);
             }
         }
         sb.AppendLine();

@@ -63,7 +63,8 @@
       "Bash(sqllocaldb info *)",
       "Bash(sqllocaldb start *)",
       "Bash(LOOM_CONNECTION=\"Server=\\(localdb\\)\\\\MSSQLLocalDB;Database=loom_diag;Trusted_Connection=True;TrustServerCertificate=True\" dotnet run --project tools/seed)",
-      "Bash(dotnet run *)"
+      "Bash(dotnet run *)",
+      "mcp__Desktop_Commander__read_file"
     ]
   }
 }

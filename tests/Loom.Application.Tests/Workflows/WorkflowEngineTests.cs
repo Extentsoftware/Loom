@@ -69,7 +69,7 @@ public sealed class WorkflowEngineTests
         };
 
         var engine = new WorkflowEngine(
-            nodes, workflows, fragmentService, composer, runService, runs,
+            nodes, workflows, fragmentService, new FakeProjectArtifactService(), composer, runService, runs,
             router, inProcSteps, projectors: [], new InMemoryEngineHealthMonitor(), events, clock);
 
         // Act ─────────────────────────────────────────────────────────

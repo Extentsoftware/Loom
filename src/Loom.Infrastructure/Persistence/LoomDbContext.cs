@@ -44,6 +44,8 @@ public sealed class LoomDbContext : DbContext, IUnitOfWork
     public DbSet<FragmentVersion> FragmentVersions => Set<FragmentVersion>();
     public DbSet<Run> Runs => Set<Run>();
     public DbSet<Artifact> Artifacts => Set<Artifact>();
+    public DbSet<ProjectArtifact> ProjectArtifacts => Set<ProjectArtifact>();
+    internal DbSet<ArtifactBlob> ArtifactBlobs => Set<ArtifactBlob>();
     public DbSet<Workflow> Workflows => Set<Workflow>();
     public DbSet<RunEvent> RunEvents => Set<RunEvent>();
     public DbSet<AssembledPrompt> AssembledPrompts => Set<AssembledPrompt>();

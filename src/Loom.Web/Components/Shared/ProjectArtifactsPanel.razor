@@ -1,0 +1,221 @@
+@*
+    Project artifacts panel — manages the seed material attached to a
+    project (links + file uploads). Used on Kickoff for pre-kickoff seeding;
+    can be reused on a project-detail page later. See ADR-0018.
+
+    The panel re-loads when ProjectId changes; rendering when ProjectId is
+    Guid.Empty hides the file/link inputs (no project to attach to yet).
+*@
+
+@inject IProjectArtifactService ProjectArtifacts
+@inject Loom.Web.Services.CurrentUserAccessor CurrentUser
+
+<section class="ws-section">
+    <h2 class="section-title">Seed artifacts</h2>
+    <p class="muted">
+        Repos, Figma boards, screenshots, design exports — anything the agents
+        should see at kickoff and during enrichment. Project-scope rows apply
+        to every feature; feature-scope rows narrow to one node.
+    </p>
+
+    @if (ProjectId == Guid.Empty)
+    {
+        <p class="muted">Select or create a project to attach artifacts.</p>
+    }
+    else
+    {
+        @if (_loaded && _items.Count > 0)
+        {
+            <ul class="artifact-list">
+                @foreach (var a in _items)
+                {
+                    <li class="artifact-row">
+                        <span class="artifact-kind">[@a.Kind]</span>
+                        <span class="artifact-label">@a.Label</span>
+                        @if (a.Payload == ProjectArtifactPayload.Link && a.Url is not null)
+                        {
+                            <a class="artifact-target" href="@a.Url" target="_blank" rel="noreferrer">@a.Url</a>
+                        }
+                        else if (a.Blob is not null)
+                        {
+                            <span class="artifact-target muted">@a.Blob.Uri (@a.Blob.ContentType, @FormatBytes(a.Blob.SizeBytes))</span>
+                        }
+                        <button type="button" class="btn-link" @onclick="() => RemoveAsync(a.Id)">Remove</button>
+                    </li>
+                }
+            </ul>
+        }
+        else if (_loaded)
+        {
+            <p class="muted">No artifacts attached yet.</p>
+        }
+
+        <div class="artifact-add">
+            <h3>Add link</h3>
+            <div class="form-row">
+                <label>Kind</label>
+                <select @bind="_linkKind">
+                    <option value="@ProjectArtifactKind.Repo">Repo</option>
+                    <option value="@ProjectArtifactKind.Figma">Figma</option>
+                    <option value="@ProjectArtifactKind.Confluence">Confluence</option>
+                    <option value="@ProjectArtifactKind.Miro">Miro</option>
+                    <option value="@ProjectArtifactKind.ExternalUrl">External URL</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Label</label>
+                <input @bind="_linkLabel" placeholder="e.g. Existing checkout repo" />
+            </div>
+            <div class="form-row">
+                <label>URL</label>
+                <input @bind="_linkUrl" placeholder="https://github.com/acme/checkout" />
+            </div>
+            <button type="button" class="btn-primary" @onclick="AddLinkAsync" disabled="@_busy">Attach link</button>
+            @if (_linkError is not null)
+            {
+                <p class="error">@_linkError</p>
+            }
+
+            <h3>Upload file</h3>
+            <div class="form-row">
+                <label>Kind</label>
+                <select @bind="_fileKind">
+                    <option value="@ProjectArtifactKind.Image">Image</option>
+                    <option value="@ProjectArtifactKind.Document">Document</option>
+                    <option value="@ProjectArtifactKind.ArchiveBundle">Archive / bundle</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Label</label>
+                <input @bind="_fileLabel" placeholder="e.g. Current checkout screenshot" />
+            </div>
+            <div class="form-row">
+                <label>File</label>
+                <InputFile OnChange="OnFileChosen" />
+            </div>
+            @if (_fileError is not null)
+            {
+                <p class="error">@_fileError</p>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProjectId { get; set; }
+    [Parameter] public NodeId? NodeId { get; set; }
+
+    private bool _loaded;
+    private bool _busy;
+    private List<ProjectArtifact> _items = [];
+
+    private ProjectArtifactKind _linkKind = ProjectArtifactKind.Repo;
+    private string _linkLabel = string.Empty;
+    private string _linkUrl = string.Empty;
+    private string? _linkError;
+
+    private ProjectArtifactKind _fileKind = ProjectArtifactKind.Image;
+    private string _fileLabel = string.Empty;
+    private string? _fileError;
+
+    private Guid _lastLoadedProjectId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProjectId != _lastLoadedProjectId)
+        {
+            _lastLoadedProjectId = ProjectId;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (ProjectId == Guid.Empty)
+        {
+            _items = [];
+            _loaded = true;
+            return;
+        }
+        var rows = await ProjectArtifacts.ListForFeatureAsync(ProjectId, NodeId);
+        _items = rows.ToList();
+        _loaded = true;
+    }
+
+    private async Task AddLinkAsync()
+    {
+        _linkError = null;
+        _busy = true;
+        try
+        {
+            await ProjectArtifacts.AttachLinkAsync(
+                ProjectId, NodeId, _linkKind,
+                _linkLabel, _linkUrl, description: null,
+                CurrentUser.GetUserId());
+            _linkLabel = string.Empty;
+            _linkUrl = string.Empty;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _linkError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task OnFileChosen(InputFileChangeEventArgs e)
+    {
+        _fileError = null;
+        _busy = true;
+        try
+        {
+            var browserFile = e.File;
+            // Cap matches the default ProjectArtifactOptions.MaxFileBytes.
+            // Service-side validation enforces the configured cap; this
+            // limit just stops the UI from streaming a huge upload that
+            // would be rejected anyway.
+            using var ms = new MemoryStream();
+            await using (var src = browserFile.OpenReadStream(maxAllowedSize: 25L * 1024 * 1024))
+            {
+                await src.CopyToAsync(ms);
+            }
+            var bundle = new ArtifactBundle([
+                new ArtifactFile(
+                    browserFile.Name,
+                    string.IsNullOrWhiteSpace(browserFile.ContentType) ? "application/octet-stream" : browserFile.ContentType,
+                    ms.ToArray())
+            ]);
+            var label = string.IsNullOrWhiteSpace(_fileLabel) ? browserFile.Name : _fileLabel;
+            await ProjectArtifacts.AttachFileAsync(
+                ProjectId, NodeId, _fileKind,
+                label, bundle, description: null,
+                CurrentUser.GetUserId());
+            _fileLabel = string.Empty;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _fileError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RemoveAsync(ProjectArtifactId id)
+    {
+        await ProjectArtifacts.RemoveAsync(id);
+        await ReloadAsync();
+    }
+
+    private static string FormatBytes(long? n) =>
+        n is null
+            ? "?"
+            : n < 1024 ? $"{n} B"
+            : n < 1024 * 1024 ? $"{n / 1024.0:0.0} KB"
+            : $"{n / (1024.0 * 1024):0.0} MB";
+}

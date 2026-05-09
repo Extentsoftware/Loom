@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFragmentRepository, FragmentRepository>();
         services.AddScoped<IRunRepository, RunRepository>();
         services.AddScoped<IArtifactRepository, ArtifactRepository>();
+        services.AddScoped<IProjectArtifactRepository, ProjectArtifactRepository>();
         services.AddScoped<IWorkflowRepository, WorkflowRepository>();
         services.AddScoped<IRunEventRepository, RunEventRepository>();
         services.AddScoped<IAssembledPromptRepository, AssembledPromptRepository>();
@@ -105,6 +106,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificationFeed, NotificationFeed>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IArtifactService, ArtifactService>();
+        services.AddScoped<IProjectArtifactService, ProjectArtifactService>();
+        services.AddScoped<IArtifactBlobStore, SqlArtifactBlobStore>();
+        services.AddOptions<ProjectArtifactOptions>()
+            .BindConfiguration(ProjectArtifactOptions.SectionName);
 
         // Phase-5: budget control + engine health monitor.
         services.AddScoped<IBudgetService, BudgetService>();
