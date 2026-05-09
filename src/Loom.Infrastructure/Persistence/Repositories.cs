@@ -190,6 +190,38 @@ public sealed class ArtifactRepository(LoomDbContext db) : IArtifactRepository
     }
 }
 
+public sealed class ProjectArtifactRepository(LoomDbContext db) : IProjectArtifactRepository
+{
+    public Task<ProjectArtifact?> GetAsync(ProjectArtifactId id, CancellationToken ct = default) =>
+        db.ProjectArtifacts.FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public async Task<IReadOnlyList<ProjectArtifact>> ListForFeatureAsync(
+        Guid projectId,
+        NodeId? nodeId,
+        CancellationToken ct = default)
+    {
+        // Inheritance: project-scope rows (NodeId is null) plus rows attached
+        // to the specific feature when supplied. See ADR-0018.
+        var query = db.ProjectArtifacts.Where(a => a.ProjectId == projectId);
+        query = nodeId is null
+            ? query.Where(a => a.NodeId == null)
+            : query.Where(a => a.NodeId == null || a.NodeId == nodeId);
+        return await query.OrderBy(a => a.CreatedAt).ToListAsync(ct);
+    }
+
+    public Task AddAsync(ProjectArtifact artifact, CancellationToken ct = default)
+    {
+        db.ProjectArtifacts.Add(artifact);
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveAsync(ProjectArtifact artifact, CancellationToken ct = default)
+    {
+        db.ProjectArtifacts.Remove(artifact);
+        return Task.CompletedTask;
+    }
+}
+
 public sealed class WorkflowRepository(LoomDbContext db) : IWorkflowRepository
 {
     public Task<Workflow?> GetAsync(WorkflowId id, CancellationToken ct = default) =>

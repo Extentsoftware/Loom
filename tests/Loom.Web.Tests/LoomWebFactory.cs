@@ -1,23 +1,25 @@
-using Loom.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Loom.Web.Tests;
 
 /// <summary>
-/// Boots the Loom.Web host with the DbContext swapped for an in-memory
-/// provider and Entra disabled, so the host can stand up without external
+/// Boots the Loom.Web host with a per-factory SQLite database (temp file)
+/// and Entra disabled, so the host can stand up without external
 /// dependencies. Use for routing, layout, and basic page-render tests.
 ///
-/// Note: in-memory provider does not enforce relational constraints
-/// (unique indexes, cascade behaviour). Tests that need real schema
+/// Note: SQLite enforces most relational constraints, but a few SQL-Server-
+/// specific schema behaviours (filtered indexes, computed columns, certain
+/// cascade shapes) are not exercised here. Tests that need SQL-Server-shape
 /// behaviour belong in Loom.Infrastructure.Tests with Testcontainers.
 /// </summary>
 public sealed class LoomWebFactory : WebApplicationFactory<Program>
 {
+    private readonly string _dbPath = Path.Combine(
+        Path.GetTempPath(),
+        $"loom-test-{Guid.NewGuid():N}.db");
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -27,24 +29,24 @@ public sealed class LoomWebFactory : WebApplicationFactory<Program>
             cfg.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["AzureAd:Enabled"] = "false",
-                ["ConnectionStrings:Loom"] = "Server=ignored;Database=ignored;",
+                ["ConnectionStrings:Loom"] = $"Data Source={_dbPath}",
             });
         });
+    }
 
-        builder.ConfigureServices(services =>
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (!disposing) return;
+
+        try
         {
-            // Replace the SQL-backed DbContext with in-memory.
-            var dbContextDescriptors = services
-                .Where(d => d.ServiceType == typeof(DbContextOptions<LoomDbContext>) ||
-                            d.ServiceType == typeof(LoomDbContext))
-                .ToList();
-            foreach (var d in dbContextDescriptors)
+            if (File.Exists(_dbPath))
             {
-                services.Remove(d);
+                File.Delete(_dbPath);
             }
-
-            services.AddDbContext<LoomDbContext>(options =>
-                options.UseInMemoryDatabase($"loom-test-{Guid.NewGuid():N}"));
-        });
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 }

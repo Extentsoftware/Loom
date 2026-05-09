@@ -1,3 +1,4 @@
+using Loom.Domain.Artifacts;
 using Loom.Domain.Nodes;
 
 namespace Loom.Application.Workflows;
@@ -16,4 +17,20 @@ public sealed record NodeContext(
     IReadOnlyList<string> AncestorTitles,
     IReadOnlyList<string> OpenQuestions,
     IReadOnlyList<Outcome> Outcomes,
-    IReadOnlyList<Hypothesis> Hypotheses);
+    IReadOnlyList<Hypothesis> Hypotheses,
+    IReadOnlyList<ProjectArtifactSummary> ProjectArtifacts);
+
+/// <summary>
+/// Compact view of a project-scoped seed artifact (ADR-0018) for inclusion
+/// in prompt assembly. Bytes are not inlined — agents that want the payload
+/// fetch it via the MCP <c>get_artifact</c> tool using <see cref="BlobUri"/>.
+/// </summary>
+public sealed record ProjectArtifactSummary(
+    ProjectArtifactId Id,
+    ProjectArtifactKind Kind,
+    ProjectArtifactPayload Payload,
+    string Label,
+    string? Description,
+    string? Url,
+    string? BlobUri,
+    string? ContentType);

@@ -32,9 +32,11 @@ public sealed class HostSmokeTests : IClassFixture<LoomWebFactory>
         response.EnsureSuccessStatusCode();
 
         var html = await response.Content.ReadAsStringAsync();
-        html.Should().Contain("Operating");
-        // The empty-state message renders when no project is seeded.
-        html.Should().Contain("No project yet");
+        // Pages use InteractiveServer with prerender:false, so the initial
+        // GET returns the layout chrome plus a Blazor placeholder for the
+        // page component. Assert on the layout markers that are always SSR'd.
+        html.Should().Contain("Operating picture");
+        html.Should().Contain("proj-pill");
     }
 
     [Fact]
@@ -42,8 +44,8 @@ public sealed class HostSmokeTests : IClassFixture<LoomWebFactory>
     {
         var client = _factory.CreateClient();
         var response = await client.GetAsync("/this-route-does-not-exist");
-        response.EnsureSuccessStatusCode();
-        var html = await response.Content.ReadAsStringAsync();
-        html.Should().Contain("doesn't exist");
+        // With InteractiveServer + prerender:false, the <NotFound> body is
+        // not server-rendered; the host returns a bare 404 status.
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
     }
 }

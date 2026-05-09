@@ -1,5 +1,6 @@
 using Loom.Application.Abstractions;
 using Loom.Application.Agents;
+using Loom.Application.Artifacts;
 using Loom.Application.Fragments;
 using Loom.Application.Runs;
 using Loom.Domain.Common;
@@ -25,6 +26,7 @@ public sealed class WorkflowEngine(
     IFeatureNodeRepository nodes,
     IWorkflowRepository workflows,
     IFragmentService fragmentService,
+    IProjectArtifactService projectArtifacts,
     IAssembledPromptComposer composer,
     IRunService runService,
     IRunRepository runs,
@@ -186,7 +188,7 @@ public sealed class WorkflowEngine(
         // assembled-prompt content (and therefore the agent's view of the
         // task) is identical regardless of which engine ends up executing.
         var fragments = await fragmentService.GetEffectiveFragmentsAsync(node.Id, step.FragmentSelectors, ct);
-        var nodeContext = BuildNodeContext(node);
+        var nodeContext = await BuildNodeContextAsync(node, ct);
 
         var chain = BuildFallbackChain(step.EnginePref.Value);
         Exception? lastError = null;
@@ -381,16 +383,33 @@ public sealed class WorkflowEngine(
         _ => throw new DomainException($"Cannot map gating '{gating}' to a human role.")
     };
 
-    private static NodeContext BuildNodeContext(FeatureNode node) => new(
-        NodeId: node.Id,
-        Title: node.Title,
-        Intent: node.Intent,
-        Phase: node.Phase,
-        Type: node.Type,
-        AncestorTitles: [],
-        OpenQuestions: node.OpenQuestions,
-        Outcomes: node.Outcomes,
-        Hypotheses: node.Hypotheses);
+    private async Task<NodeContext> BuildNodeContextAsync(FeatureNode node, CancellationToken ct)
+    {
+        var seedArtifacts = await projectArtifacts.ListForFeatureAsync(node.ProjectId, node.Id, ct);
+        var summaries = seedArtifacts
+            .Select(a => new ProjectArtifactSummary(
+                a.Id,
+                a.Kind,
+                a.Payload,
+                a.Label,
+                a.Description,
+                a.Url,
+                a.Blob?.Uri,
+                a.Blob?.ContentType))
+            .ToList();
+
+        return new NodeContext(
+            NodeId: node.Id,
+            Title: node.Title,
+            Intent: node.Intent,
+            Phase: node.Phase,
+            Type: node.Type,
+            AncestorTitles: [],
+            OpenQuestions: node.OpenQuestions,
+            Outcomes: node.Outcomes,
+            Hypotheses: node.Hypotheses,
+            ProjectArtifacts: summaries);
+    }
 
     /// <summary>
     /// RunEvent.StepOutput embeds the output verbatim into a JSON payload.
