@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Loom.Application.Fragments;
 using Loom.Application.Workflows;
+using Loom.Domain.Artifacts;
 using Loom.Domain.Common;
 using Loom.Domain.Fragments;
 using Loom.Domain.Nodes;
@@ -42,7 +43,8 @@ public sealed class AssembledPromptComposerTests
         AncestorTitles: ["Payments"],
         OpenQuestions: ["EU coverage?"],
         Outcomes: [Outcome.Of("Conversion +5%")],
-        Hypotheses: []);
+        Hypotheses: [],
+        ProjectArtifacts: []);
 
     [Fact]
     public void Compose_ProducesSystemPrompt_OrderedByCategory()
@@ -90,6 +92,54 @@ public sealed class AssembledPromptComposerTests
         fr.FragmentId.Should().Be(ef.Fragment.Id);
         fr.VersionId.Should().Be(ef.Version.Id);
         fr.Version.Should().Be(ef.Version.Version);
+    }
+
+    [Fact]
+    public void Compose_IncludesProjectArtifactsBlock_WhenSeedsAttached()
+    {
+        var composer = new AssembledPromptComposer();
+        var ctx = SampleContext() with
+        {
+            ProjectArtifacts =
+            [
+                new ProjectArtifactSummary(
+                    ProjectArtifactId.New(), ProjectArtifactKind.Repo, ProjectArtifactPayload.Link,
+                    Label: "Existing checkout repo", Description: null,
+                    Url: "https://github.com/acme/checkout", BlobUri: null, ContentType: null),
+                new ProjectArtifactSummary(
+                    ProjectArtifactId.New(), ProjectArtifactKind.Image, ProjectArtifactPayload.File,
+                    Label: "Current screenshot", Description: "Annotated by UX",
+                    Url: null, BlobUri: "loom-artifact://abc", ContentType: "image/png")
+            ]
+        };
+
+        var prompt = composer.Compose(
+            workflowStep: MakeStep(),
+            fragments: [],
+            nodeContext: ctx,
+            inputs: new Dictionary<string, string> { ["transcript"] = "x" },
+            runId: RunId.New(),
+            now: Now);
+
+        prompt.SystemPrompt.Should().Contain("## Project artifacts");
+        prompt.SystemPrompt.Should().Contain("https://github.com/acme/checkout");
+        prompt.SystemPrompt.Should().Contain("loom-artifact://abc");
+        prompt.SystemPrompt.Should().Contain("Annotated by UX");
+    }
+
+    [Fact]
+    public void Compose_OmitsProjectArtifactsBlock_WhenEmpty()
+    {
+        var composer = new AssembledPromptComposer();
+        var prompt = composer.Compose(
+            workflowStep: MakeStep(),
+            fragments: [],
+            nodeContext: SampleContext(),
+            inputs: new Dictionary<string, string> { ["transcript"] = "x" },
+            runId: RunId.New(),
+            now: Now);
+
+        prompt.SystemPrompt.Should().NotContain("## Project artifacts");
     }
 
     [Fact]

@@ -43,6 +43,9 @@ internal static class ValueConverters
     public static readonly ValueConverter<ArtifactVersionId, Guid> ArtifactVersionId =
         new(id => id.Value, g => new ArtifactVersionId(g));
 
+    public static readonly ValueConverter<ProjectArtifactId, Guid> ProjectArtifactId =
+        new(id => id.Value, g => new ProjectArtifactId(g));
+
     public static readonly ValueConverter<Domain.BudgetControl.ProjectBudgetId, Guid> ProjectBudgetId =
         new(id => id.Value, g => new Domain.BudgetControl.ProjectBudgetId(g));
 
