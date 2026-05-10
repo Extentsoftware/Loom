@@ -80,7 +80,7 @@ else
                     @RenderTestPlan(_artifact.Canonical.ExternalId)
                     break;
                 default:
-                    <pre class="prompt-block">@_artifact.Canonical.ExternalId</pre>
+                    @RenderFallback(_artifact.Canonical.ExternalId, _artifact.Kind)
                     break;
             }
         </section>
@@ -257,11 +257,7 @@ else
         }
         else if (description is null)
         {
-            // Bad JSON — fall back to raw text so the body isn't lost.
-            builder.OpenElement(20, "pre");
-            builder.AddAttribute(21, "class", "prompt-block");
-            builder.AddContent(22, body);
-            builder.CloseElement();
+            builder.AddContent(20, RenderFallback(body, Loom.Domain.Artifacts.ArtifactKind.Wireframe));
         }
     };
 
@@ -270,15 +266,17 @@ else
         var items = TryParseCriteria(body);
         if (items is null || items.Count == 0)
         {
-            builder.OpenElement(0, "pre");
-            builder.AddAttribute(1, "class", "prompt-block");
-            builder.AddContent(2, body);
-            builder.CloseElement();
+            builder.AddContent(0, RenderFallback(body, Loom.Domain.Artifacts.ArtifactKind.Criteria));
             return;
         }
-        builder.OpenElement(10, "ul");
-        builder.AddAttribute(11, "class", "criteria-list");
-        var seq = 12;
+        builder.AddContent(10, RenderCriteriaList(items));
+    };
+
+    private RenderFragment RenderCriteriaList(IReadOnlyList<CriteriaItem> items) => builder =>
+    {
+        builder.OpenElement(0, "ul");
+        builder.AddAttribute(1, "class", "criteria-list");
+        var seq = 2;
         foreach (var c in items)
         {
             builder.OpenElement(seq++, "li");
@@ -310,26 +308,28 @@ else
         var items = TryParseRisks(body);
         if (items is null || items.Count == 0)
         {
-            builder.OpenElement(0, "pre");
-            builder.AddAttribute(1, "class", "prompt-block");
-            builder.AddContent(2, body);
-            builder.CloseElement();
+            builder.AddContent(0, RenderFallback(body, Loom.Domain.Artifacts.ArtifactKind.Risks));
             return;
         }
-        builder.OpenElement(10, "table");
-        builder.AddAttribute(11, "class", "ws-table");
-        builder.OpenElement(12, "thead");
-        builder.OpenElement(13, "tr");
+        builder.AddContent(10, RenderRisksTable(items));
+    };
+
+    private RenderFragment RenderRisksTable(IReadOnlyList<RiskItem> items) => builder =>
+    {
+        builder.OpenElement(0, "table");
+        builder.AddAttribute(1, "class", "ws-table");
+        builder.OpenElement(2, "thead");
+        builder.OpenElement(3, "tr");
         foreach (var h in new[] { "Risk", "Likelihood", "Impact", "Mitigation" })
         {
-            builder.OpenElement(14, "th");
-            builder.AddContent(15, h);
+            builder.OpenElement(4, "th");
+            builder.AddContent(5, h);
             builder.CloseElement();
         }
         builder.CloseElement();
         builder.CloseElement();
-        builder.OpenElement(20, "tbody");
-        var seq = 21;
+        builder.OpenElement(10, "tbody");
+        var seq = 11;
         foreach (var r in items)
         {
             builder.OpenElement(seq++, "tr");
@@ -413,6 +413,117 @@ else
         catch (System.Text.Json.JsonException) { return null; }
     }
 
+    private sealed record DiscoveryOutcomeView(string Statement, string? MetricHint, bool Measurable);
+    private sealed record DiscoveryHypothesisView(string If, string Then, string Because);
+    private sealed record DiscoveryStakeholderView(string Name, string Role, string? Interest);
+    private sealed record DiscoveryView(
+        string? Title, string? Intent,
+        IReadOnlyList<DiscoveryOutcomeView> Outcomes,
+        IReadOnlyList<DiscoveryHypothesisView> Hypotheses,
+        IReadOnlyList<string> OpenQuestions,
+        IReadOnlyList<DiscoveryStakeholderView> Stakeholders);
+
+    private static DiscoveryView? TryParseDiscovery(System.Text.Json.JsonElement root)
+    {
+        if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+
+        bool HasArray(string name) =>
+            root.TryGetProperty(name, out var p) && p.ValueKind == System.Text.Json.JsonValueKind.Array;
+        var arrayHits = (HasArray("outcomes") ? 1 : 0)
+                       + (HasArray("hypotheses") ? 1 : 0)
+                       + (HasArray("open_questions") ? 1 : 0)
+                       + (HasArray("stakeholders") ? 1 : 0);
+        if (arrayHits < 2) return null;
+
+        var title = root.TryGetProperty("title", out var tp) && tp.ValueKind == System.Text.Json.JsonValueKind.String
+            ? tp.GetString() : null;
+        var intent = root.TryGetProperty("intent", out var ip) && ip.ValueKind == System.Text.Json.JsonValueKind.String
+            ? ip.GetString() : null;
+
+        var outcomes = new List<DiscoveryOutcomeView>();
+        if (root.TryGetProperty("outcomes", out var op) && op.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var el in op.EnumerateArray())
+            {
+                if (el.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                var s = GetString(el, "statement");
+                if (string.IsNullOrWhiteSpace(s)) continue;
+                var hint = GetString(el, "metric_hint");
+                var meas = el.TryGetProperty("measurable", out var mep) && mep.ValueKind == System.Text.Json.JsonValueKind.True;
+                outcomes.Add(new DiscoveryOutcomeView(s, string.IsNullOrWhiteSpace(hint) ? null : hint, meas));
+            }
+        }
+
+        var hypotheses = new List<DiscoveryHypothesisView>();
+        if (root.TryGetProperty("hypotheses", out var hp) && hp.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var el in hp.EnumerateArray())
+            {
+                if (el.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                var ifv = GetString(el, "if");
+                var thenv = GetString(el, "then");
+                var bec = GetString(el, "because");
+                if (string.IsNullOrWhiteSpace(ifv) && string.IsNullOrWhiteSpace(thenv)) continue;
+                hypotheses.Add(new DiscoveryHypothesisView(ifv, thenv, bec));
+            }
+        }
+
+        var openQuestions = new List<string>();
+        if (root.TryGetProperty("open_questions", out var qp) && qp.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var el in qp.EnumerateArray())
+            {
+                if (el.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var s = el.GetString();
+                    if (!string.IsNullOrWhiteSpace(s)) openQuestions.Add(s!);
+                }
+            }
+        }
+
+        var stakeholders = new List<DiscoveryStakeholderView>();
+        if (root.TryGetProperty("stakeholders", out var sp) && sp.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var el in sp.EnumerateArray())
+            {
+                if (el.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+                var name = GetString(el, "name");
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                var role = GetString(el, "role");
+                var interest = GetString(el, "interest");
+                stakeholders.Add(new DiscoveryStakeholderView(name, role, string.IsNullOrWhiteSpace(interest) ? null : interest));
+            }
+        }
+
+        return new DiscoveryView(title, intent, outcomes, hypotheses, openQuestions, stakeholders);
+    }
+
+    private sealed record DecompositionChildView(string Slug, string Title, string Type, string? Intent, string? ParentSlug);
+    private sealed record DecompositionView(IReadOnlyList<DecompositionChildView> Children);
+
+    private static DecompositionView? TryParseDecomposition(System.Text.Json.JsonElement root)
+    {
+        if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+        if (!root.TryGetProperty("children", out var arr) || arr.ValueKind != System.Text.Json.JsonValueKind.Array) return null;
+        var list = new List<DecompositionChildView>();
+        foreach (var el in arr.EnumerateArray())
+        {
+            if (el.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+            var slug = GetString(el, "slug");
+            var title = GetString(el, "title");
+            if (string.IsNullOrWhiteSpace(slug) || string.IsNullOrWhiteSpace(title)) continue;
+            var type = GetString(el, "type");
+            var intent = GetString(el, "intent");
+            var parent = GetString(el, "parentSlug");
+            list.Add(new DecompositionChildView(
+                slug, title, type,
+                string.IsNullOrWhiteSpace(intent) ? null : intent,
+                string.IsNullOrWhiteSpace(parent) ? null : parent));
+        }
+        if (list.Count == 0) return null;
+        return new DecompositionView(list);
+    }
+
     // -------- Doc renderer (slice design or implementation plan) --------
     // Detects which schema by inspecting the JSON shape and dispatches to
     // a specific renderer. Falls through to a <pre> if neither matches.
@@ -440,10 +551,7 @@ else
                 }
             }
         }
-        builder.OpenElement(10, "pre");
-        builder.AddAttribute(11, "class", "prompt-block");
-        builder.AddContent(12, body);
-        builder.CloseElement();
+        builder.AddContent(10, RenderFallback(body, Loom.Domain.Artifacts.ArtifactKind.Doc));
     };
 
     private static string GetString(System.Text.Json.JsonElement el, string name) =>
@@ -585,10 +693,7 @@ else
         try { doc = System.Text.Json.JsonDocument.Parse(body); } catch (System.Text.Json.JsonException) { }
         if (doc is null)
         {
-            builder.OpenElement(0, "pre");
-            builder.AddAttribute(1, "class", "prompt-block");
-            builder.AddContent(2, body);
-            builder.CloseElement();
+            builder.AddContent(0, RenderFallback(body, Loom.Domain.Artifacts.ArtifactKind.TestPlan));
             return;
         }
         using (doc)
@@ -638,6 +743,343 @@ else
         }
         builder.CloseElement();
     }
+
+    private RenderFragment RenderDiscovery(DiscoveryView v) => builder =>
+    {
+        var seq = 0;
+        if (!string.IsNullOrWhiteSpace(v.Title))
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, v.Title); builder.CloseElement();
+        }
+        if (!string.IsNullOrWhiteSpace(v.Intent))
+        {
+            builder.OpenElement(seq++, "p"); builder.AddContent(seq++, v.Intent); builder.CloseElement();
+        }
+
+        if (v.Outcomes.Count > 0)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Outcomes"); builder.CloseElement();
+            builder.OpenElement(seq++, "ul"); builder.AddAttribute(seq++, "class", "criteria-list");
+            foreach (var o in v.Outcomes)
+            {
+                builder.OpenElement(seq++, "li");
+                builder.OpenElement(seq++, "div");
+                builder.AddContent(seq++, o.Statement);
+                if (o.Measurable)
+                {
+                    builder.OpenElement(seq++, "span");
+                    builder.AddAttribute(seq++, "class", "badge");
+                    builder.AddAttribute(seq++, "style", "margin-left:.5rem;");
+                    builder.AddContent(seq++, "measurable");
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+                if (!string.IsNullOrWhiteSpace(o.MetricHint))
+                {
+                    builder.OpenElement(seq++, "div");
+                    builder.AddAttribute(seq++, "class", "muted");
+                    builder.AddContent(seq++, o.MetricHint);
+                    builder.CloseElement();
+                }
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+
+        if (v.Hypotheses.Count > 0)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Hypotheses"); builder.CloseElement();
+            builder.OpenElement(seq++, "table"); builder.AddAttribute(seq++, "class", "ws-table");
+            builder.OpenElement(seq++, "thead"); builder.OpenElement(seq++, "tr");
+            foreach (var h in new[] { "If", "Then", "Because" })
+            { builder.OpenElement(seq++, "th"); builder.AddContent(seq++, h); builder.CloseElement(); }
+            builder.CloseElement(); builder.CloseElement();
+            builder.OpenElement(seq++, "tbody");
+            foreach (var h in v.Hypotheses)
+            {
+                builder.OpenElement(seq++, "tr");
+                foreach (var c in new[] { h.If, h.Then, h.Because })
+                { builder.OpenElement(seq++, "td"); builder.AddContent(seq++, c); builder.CloseElement(); }
+                builder.CloseElement();
+            }
+            builder.CloseElement(); builder.CloseElement();
+        }
+
+        if (v.Stakeholders.Count > 0)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Stakeholders"); builder.CloseElement();
+            builder.OpenElement(seq++, "table"); builder.AddAttribute(seq++, "class", "ws-table");
+            builder.OpenElement(seq++, "thead"); builder.OpenElement(seq++, "tr");
+            foreach (var h in new[] { "Name", "Role", "Interest" })
+            { builder.OpenElement(seq++, "th"); builder.AddContent(seq++, h); builder.CloseElement(); }
+            builder.CloseElement(); builder.CloseElement();
+            builder.OpenElement(seq++, "tbody");
+            foreach (var s in v.Stakeholders)
+            {
+                builder.OpenElement(seq++, "tr");
+                foreach (var c in new[] { s.Name, s.Role, s.Interest ?? string.Empty })
+                { builder.OpenElement(seq++, "td"); builder.AddContent(seq++, c); builder.CloseElement(); }
+                builder.CloseElement();
+            }
+            builder.CloseElement(); builder.CloseElement();
+        }
+
+        if (v.OpenQuestions.Count > 0)
+        {
+            builder.OpenElement(seq++, "h3"); builder.AddContent(seq++, "Open questions"); builder.CloseElement();
+            builder.OpenElement(seq++, "ul");
+            foreach (var q in v.OpenQuestions)
+            {
+                builder.OpenElement(seq++, "li"); builder.AddContent(seq++, q); builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+    };
+
+    private RenderFragment RenderDecomposition(DecompositionView v) => builder =>
+    {
+        var seq = 0;
+        builder.OpenElement(seq++, "table"); builder.AddAttribute(seq++, "class", "ws-table");
+        builder.OpenElement(seq++, "thead"); builder.OpenElement(seq++, "tr");
+        foreach (var h in new[] { "Slug", "Title", "Type", "Parent", "Intent" })
+        { builder.OpenElement(seq++, "th"); builder.AddContent(seq++, h); builder.CloseElement(); }
+        builder.CloseElement(); builder.CloseElement();
+        builder.OpenElement(seq++, "tbody");
+        foreach (var c in v.Children)
+        {
+            builder.OpenElement(seq++, "tr");
+
+            builder.OpenElement(seq++, "td");
+            builder.OpenElement(seq++, "code"); builder.AddContent(seq++, c.Slug); builder.CloseElement();
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "td"); builder.AddContent(seq++, c.Title); builder.CloseElement();
+
+            builder.OpenElement(seq++, "td");
+            if (!string.IsNullOrWhiteSpace(c.Type))
+            {
+                builder.OpenElement(seq++, "span"); builder.AddAttribute(seq++, "class", "badge");
+                builder.AddContent(seq++, c.Type); builder.CloseElement();
+            }
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "td");
+            if (!string.IsNullOrWhiteSpace(c.ParentSlug))
+            {
+                builder.OpenElement(seq++, "code"); builder.AddContent(seq++, c.ParentSlug); builder.CloseElement();
+            }
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "td"); builder.AddContent(seq++, c.Intent ?? string.Empty); builder.CloseElement();
+
+            builder.CloseElement();
+        }
+        builder.CloseElement(); builder.CloseElement();
+    };
+
+    private const int GenericJsonMaxDepth = 5;
+
+    private RenderFragment RenderGenericJson(System.Text.Json.JsonElement root) => builder =>
+    {
+        var seq = 0;
+        RenderJsonValue(builder, ref seq, root, depth: 0);
+    };
+
+    private static void RenderJsonValue(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder,
+        ref int seq, System.Text.Json.JsonElement el, int depth)
+    {
+        if (depth >= GenericJsonMaxDepth)
+        {
+            builder.OpenElement(seq++, "pre"); builder.AddAttribute(seq++, "class", "prompt-block");
+            builder.AddContent(seq++, el.GetRawText());
+            builder.CloseElement();
+            return;
+        }
+
+        switch (el.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Object:
+                RenderJsonObject(builder, ref seq, el, depth);
+                break;
+            case System.Text.Json.JsonValueKind.Array:
+                RenderJsonArray(builder, ref seq, el, depth);
+                break;
+            case System.Text.Json.JsonValueKind.String:
+                builder.AddContent(seq++, el.GetString());
+                break;
+            case System.Text.Json.JsonValueKind.Number:
+            case System.Text.Json.JsonValueKind.True:
+            case System.Text.Json.JsonValueKind.False:
+                builder.AddContent(seq++, el.GetRawText());
+                break;
+            case System.Text.Json.JsonValueKind.Null:
+            case System.Text.Json.JsonValueKind.Undefined:
+                builder.OpenElement(seq++, "span"); builder.AddAttribute(seq++, "class", "muted");
+                builder.AddContent(seq++, "—"); builder.CloseElement();
+                break;
+        }
+    }
+
+    private static void RenderJsonObject(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder,
+        ref int seq, System.Text.Json.JsonElement obj, int depth)
+    {
+        foreach (var prop in obj.EnumerateObject())
+        {
+            builder.OpenElement(seq++, "h4"); builder.AddContent(seq++, prop.Name); builder.CloseElement();
+            builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "style", "margin-left:.75rem;");
+            RenderJsonValue(builder, ref seq, prop.Value, depth + 1);
+            builder.CloseElement();
+        }
+    }
+
+    private static void RenderJsonArray(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder,
+        ref int seq, System.Text.Json.JsonElement arr, int depth)
+    {
+        if (arr.GetArrayLength() == 0)
+        {
+            builder.OpenElement(seq++, "span"); builder.AddAttribute(seq++, "class", "muted");
+            builder.AddContent(seq++, "(empty)"); builder.CloseElement();
+            return;
+        }
+
+        var allStrings = true;
+        var allObjects = true;
+        foreach (var el in arr.EnumerateArray())
+        {
+            if (el.ValueKind != System.Text.Json.JsonValueKind.String) allStrings = false;
+            if (el.ValueKind != System.Text.Json.JsonValueKind.Object) allObjects = false;
+            if (!allStrings && !allObjects) break;
+        }
+
+        if (allStrings)
+        {
+            builder.OpenElement(seq++, "ul");
+            foreach (var el in arr.EnumerateArray())
+            {
+                builder.OpenElement(seq++, "li"); builder.AddContent(seq++, el.GetString()); builder.CloseElement();
+            }
+            builder.CloseElement();
+            return;
+        }
+
+        if (allObjects)
+        {
+            var columns = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var el in arr.EnumerateArray())
+            {
+                foreach (var p in el.EnumerateObject())
+                {
+                    if (p.Value.ValueKind == System.Text.Json.JsonValueKind.String && seen.Add(p.Name))
+                    {
+                        columns.Add(p.Name);
+                        if (columns.Count >= 6) break;
+                    }
+                }
+                if (columns.Count >= 6) break;
+            }
+            if (columns.Count > 0)
+            {
+                builder.OpenElement(seq++, "table"); builder.AddAttribute(seq++, "class", "ws-table");
+                builder.OpenElement(seq++, "thead"); builder.OpenElement(seq++, "tr");
+                foreach (var c in columns)
+                { builder.OpenElement(seq++, "th"); builder.AddContent(seq++, c); builder.CloseElement(); }
+                builder.CloseElement(); builder.CloseElement();
+                builder.OpenElement(seq++, "tbody");
+                foreach (var el in arr.EnumerateArray())
+                {
+                    builder.OpenElement(seq++, "tr");
+                    foreach (var c in columns)
+                    {
+                        builder.OpenElement(seq++, "td");
+                        if (el.TryGetProperty(c, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            builder.AddContent(seq++, v.GetString());
+                        }
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement();
+                }
+                builder.CloseElement(); builder.CloseElement();
+                return;
+            }
+        }
+
+        builder.OpenElement(seq++, "ul");
+        foreach (var el in arr.EnumerateArray())
+        {
+            builder.OpenElement(seq++, "li");
+            RenderJsonValue(builder, ref seq, el, depth + 1);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    }
+
+    private static bool KindHasKnownSchema(Loom.Domain.Artifacts.ArtifactKind kind) => kind switch
+    {
+        Loom.Domain.Artifacts.ArtifactKind.Wireframe => true,
+        Loom.Domain.Artifacts.ArtifactKind.Criteria => true,
+        Loom.Domain.Artifacts.ArtifactKind.Risks => true,
+        Loom.Domain.Artifacts.ArtifactKind.Doc => true,
+        Loom.Domain.Artifacts.ArtifactKind.TestPlan => true,
+        _ => false,
+    };
+
+    private RenderFragment RenderFallback(string body, Loom.Domain.Artifacts.ArtifactKind kind) => builder =>
+    {
+        System.Text.Json.JsonDocument? doc = null;
+        try { doc = System.Text.Json.JsonDocument.Parse(body); } catch (System.Text.Json.JsonException) { }
+
+        if (doc is null)
+        {
+            builder.OpenElement(0, "pre");
+            builder.AddAttribute(1, "class", "prompt-block");
+            builder.AddContent(2, body);
+            builder.CloseElement();
+            return;
+        }
+
+        using (doc)
+        {
+            var root = doc.RootElement;
+            var discovery = TryParseDiscovery(root);
+            var decomposition = discovery is null ? TryParseDecomposition(root) : null;
+            var criteria = discovery is null && decomposition is null && kind != Loom.Domain.Artifacts.ArtifactKind.Criteria
+                ? TryParseCriteria(body) : null;
+            var risks = discovery is null && decomposition is null && criteria is null && kind != Loom.Domain.Artifacts.ArtifactKind.Risks
+                ? TryParseRisks(body) : null;
+
+            if (KindHasKnownSchema(kind))
+            {
+                builder.OpenElement(0, "p");
+                builder.AddAttribute(1, "class", "muted");
+                builder.AddAttribute(2, "style", "font-size:.875rem;");
+                builder.AddContent(3, $"Content didn't match expected schema for {kind} — rendering generically.");
+                builder.CloseElement();
+            }
+
+            if (discovery is not null)
+            {
+                builder.AddContent(10, RenderDiscovery(discovery));
+            }
+            else if (decomposition is not null)
+            {
+                builder.AddContent(10, RenderDecomposition(decomposition));
+            }
+            else if (criteria is { Count: > 0 })
+            {
+                builder.AddContent(10, RenderCriteriaList(criteria));
+            }
+            else if (risks is { Count: > 0 })
+            {
+                builder.AddContent(10, RenderRisksTable(risks));
+            }
+            else
+            {
+                builder.AddContent(10, RenderGenericJson(root));
+            }
+        }
+    };
 
     [Parameter] public Guid ArtifactId { get; set; }
 
