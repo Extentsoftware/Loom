@@ -33,7 +33,7 @@ jobs:
         run: dotnet restore Loom.sln
 
       - name: Verify formatting
-        run: dotnet format Loom.sln --verify-no-changes --severity warn
+        run: dotnet format Loom.sln --verify-no-changes --severity error
 
       - name: Build
         run: dotnet build Loom.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true

@@ -20,6 +20,16 @@ public sealed class LoomWebFactory : WebApplicationFactory<Program>
         Path.GetTempPath(),
         $"loom-test-{Guid.NewGuid():N}.db");
 
+    public LoomWebFactory()
+    {
+        // Program.cs reads LOOM_CONNECTION eagerly before WAF gets a chance
+        // to inject ConfigureAppConfiguration overrides, so any value from
+        // appsettings.Development.json (SQL Server) wins by default. Setting
+        // the env var here forces the host onto the SQLite test DB before
+        // Program runs.
+        Environment.SetEnvironmentVariable("LOOM_CONNECTION", $"Data Source={_dbPath}");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");

@@ -26,7 +26,7 @@ internal sealed class ArtifactConfiguration : IEntityTypeConfiguration<Artifact>
             // wireframe payloads) embed their full JSON body here. External-
             // store artifacts still use a short identifier and pay no cost
             // for the wider column.
-            x.Property(p => p.ExternalId).HasColumnName("canonical_external_id").HasColumnType("nvarchar(max)").IsRequired();
+            x.Property(p => p.ExternalId).HasColumnName("canonical_external_id").IsRequired();
             x.Property(p => p.Url).HasColumnName("canonical_url").HasMaxLength(2000);
         });
 

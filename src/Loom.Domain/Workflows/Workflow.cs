@@ -39,7 +39,7 @@ public sealed class Workflow
     public string Title { get; private set; } = null!;
     public DateTimeOffset CreatedAt { get; private set; }
 
-    public IReadOnlyList<WorkflowStep> Steps => _steps.AsReadOnly();
+    public IReadOnlyList<WorkflowStep> Steps => _steps.OrderBy(s => s.Order).ToList();
 
     public static Workflow Create(
         Slug key,
