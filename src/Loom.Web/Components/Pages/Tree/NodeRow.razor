@@ -1,12 +1,13 @@
 @*
-    Recursive tree row. Renders the node's status, type, title, and phase,
-    then recurses into children. The row links into the Feature Workspace
-    page so the tree doubles as navigation.
+    Recursive tree row. Renders the node's status, type, title, and phase
+    on a single line, then recurses into children. The row links into the
+    Feature Workspace page so the tree doubles as navigation. Features
+    render in bold to distinguish them from the capabilities below.
 *@
 
-<div class="tree-row tree-depth-@Depth">
+<div class="tree-row tree-depth-@Depth tree-type-@TypeClass(Row.Type)">
     <StatusPulseBadge Signals="Row.Status" />
-    <span class="tree-type">@TypeAbbrev(Row.Type)</span>
+    <span class="tree-type-icon" title="@TypeLabel(Row.Type)" aria-label="@TypeLabel(Row.Type)">@TypeIcon(Row.Type)</span>
     <a class="tree-title" href="@($"/n/{Row.NodeId.Value:D}")">@Row.Title</a>
     <PhasePill Phase="Row.Phase" />
 </div>
@@ -22,12 +23,30 @@
     [Parameter, EditorRequired] public NodeTreeRow Row { get; set; } = default!;
     [Parameter] public int Depth { get; set; }
 
-    private static string TypeAbbrev(NodeType t) => t switch
+    private static string TypeIcon(NodeType t) => t switch
     {
-        NodeType.Initiative => "INIT",
-        NodeType.Feature => "FEAT",
-        NodeType.Capability => "CAP",
-        NodeType.Slice => "SLC",
-        _ => t.ToString().ToUpperInvariant()
+        NodeType.Initiative => "◆",
+        NodeType.Feature    => "●",
+        NodeType.Capability => "○",
+        NodeType.Slice      => "▸",
+        _                   => "•"
+    };
+
+    private static string TypeLabel(NodeType t) => t switch
+    {
+        NodeType.Initiative => "Initiative",
+        NodeType.Feature    => "Feature",
+        NodeType.Capability => "Capability",
+        NodeType.Slice      => "Slice",
+        _                   => t.ToString()
+    };
+
+    private static string TypeClass(NodeType t) => t switch
+    {
+        NodeType.Initiative => "initiative",
+        NodeType.Feature    => "feature",
+        NodeType.Capability => "capability",
+        NodeType.Slice      => "slice",
+        _                   => "node"
     };
 }

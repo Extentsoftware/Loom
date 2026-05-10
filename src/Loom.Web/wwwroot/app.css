@@ -263,13 +263,28 @@ a { color: inherit; text-decoration: none; }
 }
 .tree-row {
   display: grid;
-  grid-template-columns: 60px 1fr auto;
+  /* status-pulse · type-icon · title · phase-pill — single line so the
+     phase doesn't wrap below. The 1fr column absorbs slack. */
+  grid-template-columns: auto auto 1fr auto;
   align-items: center;
   gap: 14px;
   padding: 10px 0 10px 16px;
   border-bottom: 1px solid var(--border);
   position: relative;
 }
+.tree-type-icon {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1;
+  width: 1.2em;
+  text-align: center;
+  cursor: help;
+}
+.tree-row.tree-type-feature .tree-title { font-weight: 700; }
+.tree-row.tree-type-initiative .tree-title { font-weight: 700; letter-spacing: 0.01em; }
+.tree-row.tree-type-feature .tree-type-icon { color: var(--accent); }
+.tree-row.tree-type-initiative .tree-type-icon { color: var(--accent); }
+.tree-row.tree-type-capability .tree-type-icon { color: var(--text-3); }
 .tree-row:last-child { border-bottom: none; }
 .tree-row::before {
   content: '';
@@ -487,4 +502,18 @@ button:disabled,
 .btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ─── Artifact attach: drop / paste / pick zone ──────────────────── */
+.attach-dropzone {
+  border: 1px dashed var(--border-2);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: .5rem;
+  background: var(--surface);
+  transition: border-color .12s ease, background .12s ease;
+}
+.attach-dropzone.is-active {
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
