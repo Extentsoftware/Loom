@@ -29,6 +29,7 @@ public interface IKickoffService
     /// the accept (existing + newly-created).</returns>
     Task<IReadOnlyList<NodeId>> AcceptDecompositionAsync(
         RunId gateRunId,
+        string gateStepKey,
         NodeId parentNodeId,
         IReadOnlyList<ProposedChildAcceptance> children,
         Guid acceptedBy,

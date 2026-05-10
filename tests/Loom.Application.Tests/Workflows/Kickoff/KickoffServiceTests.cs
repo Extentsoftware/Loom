@@ -57,7 +57,9 @@ public sealed class KickoffServiceTests
         };
 
         var fakeRunId = RunId.New();
-        await kickoff.AcceptDecompositionAsync(fakeRunId, initiative.Id, accepted, PoUserId);
+        await kickoff.AcceptDecompositionAsync(
+            fakeRunId, KickoffMultiWorkflowFactory.DecomposeStepKey,
+            initiative.Id, accepted, PoUserId);
 
         var initiativeChildren = await nodes.GetChildrenAsync(initiative.Id);
         initiativeChildren.Select(n => n.Slug.Value).Should().BeEquivalentTo(
@@ -98,7 +100,9 @@ public sealed class KickoffServiceTests
                 ParentSlug: Slug.From("never-proposed")),
         };
 
-        await kickoff.AcceptDecompositionAsync(RunId.New(), feature.Id, accepted, PoUserId);
+        await kickoff.AcceptDecompositionAsync(
+            RunId.New(), KickoffWorkflowFactory.DecomposeStepKey,
+            feature.Id, accepted, PoUserId);
 
         var kids = await nodes.GetChildrenAsync(feature.Id);
         kids.Should().ContainSingle()

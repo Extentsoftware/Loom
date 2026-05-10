@@ -52,7 +52,7 @@ else if (_run.State != RunState.PausedForHuman)
         }
     </section>
 }
-else if (_step.Key == KickoffWorkflowFactory.DiscoveryStepKey && _discovery is not null)
+else if (IsDiscoveryStep(_step.Key) && _discovery is not null)
 {
     <header class="page-head">
         <p class="page-meta">
@@ -102,7 +102,7 @@ else if (_step.Key == KickoffWorkflowFactory.DiscoveryStepKey && _discovery is n
 
     <RunTimeline RunId="_run.Id" />
 }
-else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey && _decomposition is not null)
+else if (IsDecomposeStep(_step.Key) && _decomposition is not null)
 {
     <header class="page-head">
         <p class="page-meta">
@@ -146,8 +146,8 @@ else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey && _decomposition 
 
     <RunTimeline RunId="_run.Id" />
 }
-else if ((_step.Key == KickoffWorkflowFactory.DiscoveryStepKey ||
-          _step.Key == KickoffWorkflowFactory.DecomposeStepKey) &&
+else if ((IsDiscoveryStep(_step.Key) ||
+          IsDecomposeStep(_step.Key)) &&
          _rawAgentOutput is not null)
 {
     <header class="page-head">
@@ -254,6 +254,18 @@ else
 }
 
 @code {
+    // Both kickoff workflows route through this gate page. Step keys
+    // differ: kickoff/v2 uses "discovery"/"decompose", kickoff-multi/v1
+    // uses "initiative-discovery"/"multi-decompose". Recognise either
+    // set so the page renders the right editor.
+    private static bool IsDiscoveryStep(string key) =>
+        key == KickoffWorkflowFactory.DiscoveryStepKey ||
+        key == Loom.Application.Workflows.Kickoff.KickoffMultiWorkflowFactory.DiscoveryStepKey;
+
+    private static bool IsDecomposeStep(string key) =>
+        key == KickoffWorkflowFactory.DecomposeStepKey ||
+        key == Loom.Application.Workflows.Kickoff.KickoffMultiWorkflowFactory.DecomposeStepKey;
+
     [Parameter] public Guid RunId { get; set; }
 
     private bool _loaded;
@@ -307,7 +319,7 @@ else
                     outputProp.ValueKind == System.Text.Json.JsonValueKind.String)
                 {
                     var raw = outputProp.GetString() ?? string.Empty;
-                    if (_step.Key == KickoffWorkflowFactory.DiscoveryStepKey)
+                    if (IsDiscoveryStep(_step.Key))
                     {
                         _discovery = TryParse<DiscoveryObject>(raw);
                         if (_discovery is not null)
@@ -322,7 +334,7 @@ else
                             _rawAgentOutput = raw;
                         }
                     }
-                    else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey)
+                    else if (IsDecomposeStep(_step.Key))
                     {
                         _decomposition = TryParse<DecompositionProposal>(raw);
                         if (_decomposition is not null)
@@ -429,13 +441,17 @@ else
 
             // Forward the accepted discovery as input to the decompose step.
             var serialized = System.Text.Json.JsonSerializer.Serialize(acceptance);
+            // Pass the real step key (could be "discovery" for the
+            // single-feature kickoff or "initiative-discovery" for the
+            // multi-feature one) so the engine resolves the right gate.
+            var stepKey = _step!.Key;
             await Engine.ResolveGateAsync(
                 _run.Id,
-                KickoffWorkflowFactory.DiscoveryStepKey,
+                stepKey,
                 CurrentUser.GetUserId(),
                 edits: new Dictionary<string, string>
                 {
-                    [$"{KickoffWorkflowFactory.DiscoveryStepKey}.output"] = serialized
+                    [$"{stepKey}.output"] = serialized
                 });
 
             await NavigateAfterResolveAsync();
@@ -496,7 +512,7 @@ else
             // EnrichmentAutoQueueHandler can't race against the
             // half-built tree.
             await Kickoff.AcceptDecompositionAsync(
-                _run.Id, _targetNodeId.Value, accepted, ownerId);
+                _run.Id, _step!.Key, _targetNodeId.Value, accepted, ownerId);
 
             // Decompose is the last step; redirect to the workspace.
             Nav.NavigateTo($"/n/{_targetNodeId.Value.Value:D}");
