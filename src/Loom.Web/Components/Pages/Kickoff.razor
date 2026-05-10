@@ -1,7 +1,9 @@
 @*
     Kickoff page — the Phase-1 demo entry point. Paste a transcript, hit
-    Begin, and the workflow engine pumps it through:
-       normalize (in-proc) → discovery (Anthropic) → human gate
+    Analyse, and the scope classifier suggests whether this is a single-
+    feature or multi-feature kickoff. The PO confirms (or overrides),
+    then the workflow engine pumps the transcript through:
+       normalize (in-proc) → discovery (Foundry) → human gate
     Once the engine pauses at the discovery gate the page redirects to
     /runs/{runId}/gate where the PO reviews and accepts the discovery.
 
@@ -17,6 +19,7 @@
 @inject IProjectRepository Projects
 @inject IWorkflowRepository Workflows
 @inject IWorkflowEngine Engine
+@inject Loom.Application.Workflows.Kickoff.IScopeClassifier ScopeClassifier
 @inject Loom.Web.Services.CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
 
@@ -29,7 +32,7 @@
 </header>
 
 <section class="ws-section">
-    <EditForm Model="_form" OnValidSubmit="StartAsync">
+    <EditForm Model="_form" OnValidSubmit="AnalyseAsync">
         <div class="form-row">
             <label>Project</label>
             @if (_loadedProjects && _projects.Count > 0)
@@ -48,7 +51,7 @@
         </div>
         <div class="form-row">
             <label>Working title</label>
-            <input @bind="_form.Title" placeholder="A short label for this feature; the agent may suggest a better one" />
+            <input @bind="_form.Title" placeholder="A short label for this feature or initiative; the agent may suggest a better one" />
         </div>
         <div class="form-row">
             <label>Transcript</label>
@@ -58,10 +61,46 @@
         {
             <p class="error">@_error</p>
         }
-        <button type="submit" class="btn-primary" disabled="@_busy">
-            @(_busy ? "Starting…" : "Begin kickoff")
-        </button>
+        @if (_classification is null)
+        {
+            <button type="submit" class="btn-primary" disabled="@_busy">
+                @(_busy ? "Analysing…" : "Analyse transcript")
+            </button>
+        }
     </EditForm>
+
+    @if (_classification is { } c)
+    {
+        <div class="ws-section" style="margin-top:1rem; padding:1rem; border:1px solid var(--border-2); border-radius:6px;">
+            <p style="margin:0 0 .5rem 0;">
+                <strong>Scope auto-detect:</strong>
+                @c.Reason
+                @if (c.Confidence > 0)
+                {
+                    <span class="muted"> (confidence @($"{c.Confidence:P0}"))</span>
+                }
+            </p>
+            @if (c.Mode == Loom.Application.Workflows.Kickoff.KickoffScope.Multi && c.SuggestedTitles.Count > 0)
+            {
+                <p class="muted" style="margin:0 0 .5rem 0;">
+                    Detected features: @string.Join(", ", c.SuggestedTitles)
+                </p>
+            }
+            <p style="margin:0 0 .75rem 0;">Run as:</p>
+            <button type="button" class="@(c.Mode == Loom.Application.Workflows.Kickoff.KickoffScope.Single ? "btn-primary" : "btn-secondary")"
+                    disabled="@_busy" @onclick="() => StartAsync(Loom.Application.Workflows.Kickoff.KickoffScope.Single)">
+                Single feature
+            </button>
+            <button type="button" class="@(c.Mode == Loom.Application.Workflows.Kickoff.KickoffScope.Multi ? "btn-primary" : "btn-secondary")"
+                    disabled="@_busy" @onclick="() => StartAsync(Loom.Application.Workflows.Kickoff.KickoffScope.Multi)"
+                    style="margin-left:.5rem;">
+                Multi-feature initiative
+            </button>
+            <button type="button" class="btn-link" disabled="@_busy" @onclick="ResetClassification" style="margin-left:.75rem;">
+                ← edit transcript
+            </button>
+        </div>
+    }
 </section>
 
 <ProjectArtifactsPanel ProjectId="_form.ProjectId" />
@@ -72,6 +111,7 @@
     private readonly Form _form = new();
     private bool _busy;
     private string? _error;
+    private Loom.Application.Workflows.Kickoff.ScopeClassification? _classification;
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,13 +121,42 @@
         _loadedProjects = true;
     }
 
-    private async Task StartAsync()
+    private async Task AnalyseAsync()
     {
         _busy = true;
         _error = null;
         try
         {
-            // Default project on first run.
+            _classification = await ScopeClassifier.ClassifyAsync(_form.Transcript);
+        }
+        catch (Exception ex)
+        {
+            // Classifier should never throw thanks to its internal
+            // fallback, but if something upstream did, surface it and
+            // still let the PO start the workflow manually.
+            _error = $"Auto-detect failed: {ex.Message}";
+            _classification = new Loom.Application.Workflows.Kickoff.ScopeClassification(
+                Loom.Application.Workflows.Kickoff.KickoffScope.Single, 0.0,
+                "Auto-detect unavailable.", []);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ResetClassification()
+    {
+        _classification = null;
+        _error = null;
+    }
+
+    private async Task StartAsync(Loom.Application.Workflows.Kickoff.KickoffScope scope)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
             var projectId = _form.ProjectId;
             if (projectId == Guid.Empty)
             {
@@ -96,32 +165,33 @@
                 projectId = def.Id;
             }
 
-            // Placeholder root node — the discovery acceptance will rename
-            // it from "Untitled" to the agent's title (or the PO's edit).
+            // Multi-feature kickoffs root the tree on an Initiative;
+            // single-feature stays on Feature so existing flows (single
+            // discovery, capabilities-under-feature) are unchanged.
+            var rootType = scope == Loom.Application.Workflows.Kickoff.KickoffScope.Multi
+                ? NodeType.Initiative
+                : NodeType.Feature;
+            var workflowKey = scope == Loom.Application.Workflows.Kickoff.KickoffScope.Multi
+                ? Loom.Application.Workflows.Kickoff.KickoffMultiWorkflowFactory.WorkflowKey
+                : KickoffWorkflowFactory.WorkflowKey;
+
             var owner = CurrentUser.GetUserId();
             var slug = Slug.From($"kickoff-{DateTime.UtcNow:yyyyMMddHHmmss}");
             var title = string.IsNullOrWhiteSpace(_form.Title) ? "Untitled" : _form.Title;
-            var node = await Features.CreateRootNodeAsync(
-                projectId, slug, NodeType.Feature, title, owner);
+            var node = await Features.CreateRootNodeAsync(projectId, slug, rootType, title, owner);
 
-            // Resolve the kickoff workflow.
-            var workflow = await Workflows.GetCurrentByKeyAsync(
-                Slug.From(KickoffWorkflowFactory.WorkflowKey));
+            var workflow = await Workflows.GetCurrentByKeyAsync(Slug.From(workflowKey));
             if (workflow is null)
             {
-                _error = "Kickoff workflow not seeded. Restart the app or check Loom:Bootstrap configuration.";
+                _error = $"{workflowKey} workflow not seeded. Restart the app or check Loom:Bootstrap configuration.";
                 return;
             }
 
-            // Kick the engine off. It runs normalize + discovery and pauses
-            // at the discovery gate; the returned RunId is the gate run.
             var pausedAt = await Engine.StartAsync(node.Id, workflow.Id,
                 new Dictionary<string, string> { ["transcript"] = _form.Transcript });
 
             if (pausedAt is null)
             {
-                // Workflow ran to completion without pausing — unusual for
-                // kickoff but possible if all gates were Auto.
                 Nav.NavigateTo($"/n/{node.Id.Value:D}");
                 return;
             }

@@ -369,6 +369,15 @@ steps:
 
 Gates pause the run and notify the assigned human. Resuming requires explicit acceptance with optional edits — every edit is recorded against the run.
 
+### Single-feature vs multi-feature kickoff
+
+A team session sometimes covers more than one feature. Loom handles that with two parallel kickoff workflows; a transcript-level scope classifier picks a default and the PO confirms before the workflow starts.
+
+- **`kickoff/v2`** — *single-feature* (default). Root is a `Feature`. Discovery frames one feature. Decompose proposes capabilities under that feature.
+- **`kickoff-multi/v1`** — *multi-feature initiative*. Root is an `Initiative`. Discovery frames the initiative as a whole (cross-feature outcomes, scope questions). Decompose returns a two-level tree — features as top-level entries (`parentSlug` null) and capabilities nested under each via `parentSlug`.
+
+The classifier (`IScopeClassifier`) is a one-shot agent call from the Kickoff page, not a workflow step — its result is advisory and is shown to the PO with a Single / Multi confirmation. When confidence is low, neither option is pre-selected. Per-feature enrichment (acceptance criteria, hypotheses, etc.) always happens on the individual feature node afterwards, regardless of which kickoff produced it.
+
 ## 9. MCP surface
 
 ### Read tools (consumed by Claude/Cursor in IDEs)

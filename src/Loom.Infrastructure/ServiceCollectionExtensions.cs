@@ -162,6 +162,10 @@ public static class ServiceCollectionExtensions
         // Kickoff-acceptance orchestration (transactional accept-decompose).
         services.AddScoped<Loom.Application.Workflows.Kickoff.IKickoffService, Loom.Application.Workflows.Kickoff.KickoffService>();
 
+        // One-shot scope classifier — used by Kickoff.razor before
+        // starting a workflow to suggest single vs multi-feature mode.
+        services.AddScoped<Loom.Application.Workflows.Kickoff.IScopeClassifier, Loom.Application.Workflows.Kickoff.ScopeClassifier>();
+
         return services;
     }
 

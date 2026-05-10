@@ -824,6 +824,108 @@ public static class SeedFragments
             """),
 
         new(
+            Slug.From("multi-feature-decomposition"),
+            FragmentCategory.Skill,
+            "Multi-feature initiative decomposition",
+            """
+            The parent node is an INITIATIVE that covers more than one
+            feature. Produce a DecompositionProposal whose children form
+            a TWO-LEVEL TREE:
+
+              - Top-level entries are FEATURES (type "Feature",
+                parentSlug null). Each is a coherent capability bundle
+                a team would deliver as a unit.
+              - Each feature MAY be followed by 0–6 CAPABILITIES
+                (type "Capability") whose parentSlug points back at
+                that feature's slug.
+
+            Output strict JSON matching the DecompositionProposal
+            schema EXACTLY:
+
+              {
+                "children": [
+                  {
+                    "slug":       string,        // kebab-case, project-unique
+                    "title":      string,        // noun-shaped, ≤ 60 chars
+                    "type":       string,        // "Feature" | "Capability"
+                    "intent":     string|null,   // one sentence; reuses parent's framing
+                    "parentSlug": string|null    // null for features, feature.slug for capabilities
+                  }
+                ]
+              }
+
+            Rules:
+            - Hierarchy is initiative ▸ feature ▸ capability ▸ slice.
+              Features and capabilities NEVER appear at the same level.
+            - Propose 2–5 features. One feature means the session was
+              actually single-feature — return that as the only feature
+              and let the PO decide.
+            - Each capability MUST set parentSlug to a feature emitted
+              in the same response. Do not point at slugs from outside
+              the proposal.
+            - Stop at capability level for v1. Do not propose slices.
+            - Skip features that the transcript only mentions in
+              passing — the PO can ask for them later by re-running
+              decompose on the initiative.
+            """),
+
+        new(
+            Slug.From("initiative-framing"),
+            FragmentCategory.Skill,
+            "Frame an initiative across multiple features",
+            """
+            The kickoff transcript covers an INITIATIVE that spans more
+            than one feature. The discovery you produce frames the
+            initiative as a whole — not any single feature inside it.
+
+            Concretely:
+            - `title` and `intent` describe the initiative's overall
+              outcome ("Reduce checkout abandonment for returning
+              users") rather than any single feature inside it.
+            - `outcomes` capture the initiative-level success measures.
+              Where outcomes are clearly tied to one feature, mention
+              that feature in the statement so the PO can see the link.
+            - `hypotheses` are initiative-level — "If we improve guest
+              checkout AND saved-card surfacing, then conversion rises
+              because the two paths cover the bulk of the funnel."
+            - `open_questions` are anything ambiguous about scope:
+              feature ordering, dependencies between features, or
+              whether something heard in the transcript is in or out.
+            - `stakeholders` are the initiative's owners and reviewers
+              — typically a superset of any one feature's stakeholders.
+
+            Per-feature acceptance criteria, hypotheses, and constraints
+            are NOT this step's job — they're produced by enrichment on
+            each feature node after decompose splits the initiative.
+            """),
+
+        new(
+            Slug.From("transcript-multi-discovery-extraction"),
+            FragmentCategory.Skill,
+            "Initiative discovery extraction from a multi-feature transcript",
+            """
+            Same DiscoveryObject schema as the single-feature extraction
+            (title, intent, outcomes, hypotheses, open_questions,
+            stakeholders), but framed at INITIATIVE level. The decompose
+            step that follows enumerates the features.
+
+            Rules:
+            - Use the exact lowercase property names from the
+              DiscoveryObject schema; no synonyms.
+            - Title is the initiative title — short, problem-shaped,
+              spans the whole session.
+            - When the transcript clearly names features, surface them
+              in `open_questions` as "Confirm scope: feature A, feature
+              B, feature C in/out of this initiative?" so the PO can
+              prune before decompose runs.
+            - Outcomes are initiative-wide. If a single feature's
+              outcome is dominant, lead with it but qualify with the
+              feature name.
+            - Stakeholders covered by only one feature still appear
+              here — decompose carries them down to the right child.
+            """),
+
+        new(
             Slug.From("acceptance-criteria-from-intent"),
             FragmentCategory.Skill,
             "Generate acceptance criteria from intent + outcomes",
