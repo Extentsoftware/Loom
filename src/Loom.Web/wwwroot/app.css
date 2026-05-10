@@ -506,14 +506,37 @@ button:disabled,
 
 /* ─── Artifact attach: drop / paste / pick zone ──────────────────── */
 .attach-dropzone {
+  position: relative;
   border: 1px dashed var(--border-2);
   border-radius: 6px;
   padding: 1rem;
   margin-bottom: .5rem;
   background: var(--surface);
   transition: border-color .12s ease, background .12s ease;
+  min-height: 60px;
 }
 .attach-dropzone.is-active {
   border-color: var(--accent);
   background: var(--surface-2);
 }
+/* Invisible native file input that fills the dropzone — accepts both
+   clicks (file picker) and drops (browser-native handling). */
+.attach-dropzone-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+.attach-dropzone-content {
+  position: relative;
+  z-index: 0;
+}
+/* Text inside the dropzone shouldn't intercept clicks meant for the
+   overlay input; only interactive elements (buttons, links) opt back
+   in via z-index + pointer-events. */
+.attach-dropzone-content p { pointer-events: none; }
+.attach-dropzone-content button,
+.attach-dropzone-content a { pointer-events: auto; position: relative; z-index: 2; }

@@ -1,15 +1,13 @@
 // Paste-to-upload glue for FeatureWorkspace.razor's artifact attach
-// panel. Listens for `paste` events on the dropzone element and
+// panel. Listens for `paste` events on the window (capture phase) and
 // forwards image clipboard items to a Blazor [JSInvokable] method as
 // base64. Pure-string interop because Blazor Server's byte[] interop
 // is awkward; size cap is enforced server-side.
-//
-// Drop is handled natively — the dropzone wraps an <InputFile> whose
-// underlying <input type="file"> already accepts dropped files.
 
 (function () {
     if (window.loomAttachPaste) return; // module already loaded
 
+    console.debug('[loom] attach-paste.js loaded');
     const listeners = new Map(); // elementId -> { handler, dotNetRef }
 
     function bytesToBase64(bytes) {
@@ -22,8 +20,6 @@
     }
 
     window.loomAttachPaste = function (elementId, dotNetRef, methodName) {
-        const el = document.getElementById(elementId);
-        if (!el) return;
         if (listeners.has(elementId)) return;
 
         const handler = async function (ev) {
@@ -36,32 +32,35 @@
                 if (!blob) continue;
                 if (!blob.type || !blob.type.startsWith('image/')) continue;
                 ev.preventDefault();
-                const buf = await blob.arrayBuffer();
-                const b64 = bytesToBase64(new Uint8Array(buf));
-                const ext = blob.type.split('/')[1] || 'png';
-                const filename = blob.name && blob.name.length > 0
-                    ? blob.name
-                    : `pasted-${Date.now()}.${ext}`;
+                console.debug('[loom] paste image', blob.type, blob.size);
                 try {
+                    const buf = await blob.arrayBuffer();
+                    const b64 = bytesToBase64(new Uint8Array(buf));
+                    const ext = blob.type.split('/')[1] || 'png';
+                    const filename = blob.name && blob.name.length > 0
+                        ? blob.name
+                        : `pasted-${Date.now()}.${ext}`;
                     await dotNetRef.invokeMethodAsync(methodName, filename, blob.type, b64);
                 } catch (e) {
-                    console.error('loomAttachPaste invoke failed', e);
+                    console.error('[loom] paste invoke failed', e);
                 }
-                break; // one image per paste is enough
+                break; // one image per paste
             }
         };
 
-        // Listen on the document so the user doesn't have to focus the
-        // dropzone first — a paste anywhere on the page while the
-        // dropzone is visible counts.
-        document.addEventListener('paste', handler);
+        // Listen on window in capture phase so we fire even when the
+        // active element is something Blazor renders later (a
+        // <button>, a <select>, etc.) and even when no editable
+        // element has focus.
+        window.addEventListener('paste', handler, true);
         listeners.set(elementId, { handler, dotNetRef });
+        console.debug('[loom] paste listener attached for', elementId);
     };
 
     window.loomAttachPasteOff = function (elementId) {
         const entry = listeners.get(elementId);
         if (!entry) return;
-        document.removeEventListener('paste', entry.handler);
+        window.removeEventListener('paste', entry.handler, true);
         listeners.delete(elementId);
     };
 })();

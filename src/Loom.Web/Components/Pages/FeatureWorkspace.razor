@@ -405,36 +405,36 @@ else
         @if (_attachingArtifact)
         {
             <div id="attach-dropzone" class="attach-dropzone @(_attachDropActive ? "is-active" : null)"
-                 @ondragenter:preventDefault @ondragenter:stopPropagation @ondragenter="@(_ => _attachDropActive = true)"
-                 @ondragover:preventDefault @ondragover:stopPropagation
+                 @ondragenter:preventDefault @ondragenter="@(_ => _attachDropActive = true)"
+                 @ondragover:preventDefault
                  @ondragleave="@(_ => _attachDropActive = false)"
-                 @ondrop:preventDefault @ondrop:stopPropagation @ondrop="OnDropFilesAsync">
-                @if (_attachUploadBusy)
-                {
-                    <p class="muted" style="margin:0;">Uploading…</p>
-                }
-                else if (_attachUploadedRef is { } r)
-                {
-                    <p style="margin:0;">
-                        <strong>Uploaded:</strong> @r.Filename
-                        <span class="muted"> · @r.ContentType · @FormatBytes(r.SizeBytes)</span>
-                        <button class="btn-link" type="button" @onclick="ClearUploadedRef" style="margin-left:.5rem;">clear</button>
-                    </p>
-                }
-                else
-                {
-                    <p class="muted" style="margin:0;">
-                        Drop a file here, paste an image, or
-                        <label class="btn-link" style="cursor:pointer;">
-                            choose a file
-                            <InputFile OnChange="OnInputFileChangedAsync" style="display:none;" />
-                        </label>.
-                    </p>
-                }
-                @if (!string.IsNullOrEmpty(_attachUploadError))
-                {
-                    <p class="error" style="margin:.25rem 0 0 0;">@_attachUploadError</p>
-                }
+                 @ondrop="@(_ => _attachDropActive = false)">
+                @* Native input absorbs both clicks and drops. Positioned to fill the dropzone via CSS so the visible content shows through but the input still wins for click + drop routing. *@
+                <InputFile OnChange="OnInputFileChangedAsync" class="attach-dropzone-input" title="Drop, paste, or click to attach a file" />
+                <div class="attach-dropzone-content">
+                    @if (_attachUploadBusy)
+                    {
+                        <p class="muted" style="margin:0;">Uploading…</p>
+                    }
+                    else if (_attachUploadedRef is { } r)
+                    {
+                        <p style="margin:0;">
+                            <strong>Uploaded:</strong> @r.Filename
+                            <span class="muted"> · @r.ContentType · @FormatBytes(r.SizeBytes)</span>
+                            <button class="btn-link" type="button" @onclick="ClearUploadedRef" style="margin-left:.5rem; position:relative; z-index:2;">clear</button>
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="muted" style="margin:0;">
+                            Drop a file, paste an image, or click to choose.
+                        </p>
+                    }
+                    @if (!string.IsNullOrEmpty(_attachUploadError))
+                    {
+                        <p class="error" style="margin:.25rem 0 0 0;">@_attachUploadError</p>
+                    }
+                </div>
             </div>
             <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:.5rem; margin-bottom:.5rem;">
                 <label>
@@ -1004,18 +1004,6 @@ else
         var f = e.File;
         if (f is null) return;
         await IngestBrowserFileAsync(f);
-    }
-
-    private async Task OnDropFilesAsync(DragEventArgs e)
-    {
-        _attachDropActive = false;
-        // Blazor Server's DragEventArgs doesn't surface DataTransfer
-        // files directly — they have to come through an InputFile.
-        // Drag-drop onto the dropzone is wired by browsers to pick up
-        // the nearest <input type="file"> when one exists; the explicit
-        // "choose a file" label inside the dropzone provides that.
-        // Bare DragEventArgs is just a hover-state hook.
-        await Task.CompletedTask;
     }
 
     private async Task IngestBrowserFileAsync(IBrowserFile file)
