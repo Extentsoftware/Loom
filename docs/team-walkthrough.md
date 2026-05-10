@@ -27,15 +27,15 @@ This section is a status snapshot, not a TODO list — see §5 for what's next.
 | Phase (per `docs/design/loom-design.md` §15) | State |
 |---|---|
 | **1. Kernel** — Blazor Server, Entra auth, MSSQL schema, FeatureService, Operating Picture, Feature Workspace, Fragment Library, Anthropic runtime, kickoff workflow | ✅ shipped |
-| **2. MCP & IDE round-trip** — MCP server (`get_node_context`, `list_rules`, `search_nodes`), Git Sync writes `CLAUDE.md` / `.cursorrules`, ADO + webhooks | ✅ shipped |
-| **3. Decomposition & enrichment** — Decompose stage, PO Gate UI, per-node enrichment (acceptance criteria + risks), Run Detail / Provenance | ✅ shipped (Teams notification channel still stubbed) |
+| **2. MCP & IDE round-trip** — MCP server (`loom_get_node_context`, `loom_list_rules`, `loom_search_nodes`, `loom_list_project_artifacts`, `loom_get_artifact`, `loom_attach_artifact`), Git Sync writes `CLAUDE.md` / `.cursorrules`, ADO + webhooks | ✅ shipped |
+| **3. Decomposition & enrichment** — Decompose stage, PO Gate UI, per-node enrichment (acceptance criteria + risks), Run Detail / Provenance, Teams notification channel | ✅ shipped |
 | **4. Design round-trip** — Figma adapter + plugin, wireframe step, UX gate, feedback-fragment auto-derivation | ⛔ not started |
 | **5. Multi-engine + background** — `IAgentRuntime`, router, health monitor, **Foundry runtime (just landed)**, project budget circuit breaker, Agent Activity screen | 🟡 partial — Claude Code Headless still pending |
 | **6. Memory & similarity** — `IMemorySearch` seam, memory-lookup workflow step | 🟡 partial — current impl is SQL keyword fallback; Elasticsearch indexer is the real Phase-6 target |
 | **7. Workflow Designer & methodology evolution** — Visual DAG editor, fragment usage stats, annotation→fragment promotion | 🟡 partial — Workflow *Library* (read-only) exists, the *Designer* does not |
 
-Screens (per design §14): 8 of 10 shipped and interactive. Workflow Designer
-(#7) and Notification Centre (#10) are the remaining two.
+Screens (per design §14): 9 of 10 shipped and interactive. Workflow Designer
+(#7) is the only remaining screen.
 
 ## 2. The lifecycle from the team's seat
 
@@ -177,7 +177,7 @@ Claudio assigns *Saved-card surfacing* to Marcus for the backend slice
 (Zivko picks up the sibling guest-checkout node; Jamie will take the
 Razor surfacing once the API contract is firm). Marcus has the Loom
 MCP server registered in Cursor (URL `https://loom.fortius.local/mcp`,
-OAuth via Entra). Marcus runs `loom.get_node_context` for that node; the
+OAuth via Entra). Marcus runs `loom_get_node_context` for that node; the
 server returns:
 
 - The full intent + outcomes + acceptance criteria (the node is the
@@ -403,6 +403,9 @@ entries. Listed for quick orientation, not as future work.
 - **Pull-claim MCP path** — `Run.AssigneeUserId/AssignedAt`,
   `RunAssignmentService`, four MCP tools (`loom_list_my_tasks`,
   `loom_claim_task`, `loom_complete_task`, `loom_release_task`).
+- **Artifact MCP tools** — `loom_list_project_artifacts`,
+  `loom_get_artifact`, `loom_attach_artifact` for browsing and
+  attaching artifacts from IDE agents.
 - **Project DAG dashboard** — `/projects/{id}/dag`, cytoscape-driven
   (built-in `breadthfirst` layout, no plugin), phase-coloured nodes,
   click-to-navigate.
