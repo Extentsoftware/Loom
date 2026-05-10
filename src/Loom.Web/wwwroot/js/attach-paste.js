@@ -7,7 +7,7 @@
 (function () {
     if (window.loomAttachPaste) return; // module already loaded
 
-    console.debug('[loom] attach-paste.js loaded');
+    console.log('[loom] attach-paste.js loaded');
     const listeners = new Map(); // elementId -> { handler, dotNetRef }
 
     function bytesToBase64(bytes) {
@@ -32,7 +32,7 @@
                 if (!blob) continue;
                 if (!blob.type || !blob.type.startsWith('image/')) continue;
                 ev.preventDefault();
-                console.debug('[loom] paste image', blob.type, blob.size);
+                console.log('[loom] paste image', blob.type, blob.size);
                 try {
                     const buf = await blob.arrayBuffer();
                     const b64 = bytesToBase64(new Uint8Array(buf));
@@ -54,7 +54,7 @@
         // element has focus.
         window.addEventListener('paste', handler, true);
         listeners.set(elementId, { handler, dotNetRef });
-        console.debug('[loom] paste listener attached for', elementId);
+        console.log('[loom] paste listener attached for', elementId);
     };
 
     window.loomAttachPasteOff = function (elementId) {
