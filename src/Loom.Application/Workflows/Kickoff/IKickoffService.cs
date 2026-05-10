@@ -43,4 +43,9 @@ public sealed record ProposedChildAcceptance(
     Slug Slug,
     NodeType Type,
     string Title,
-    string? Intent);
+    string? Intent,
+    // Slug of another acceptance entry in the same batch that this one
+    // nests under. null means top-level (under the kickoff parent node).
+    // Resolution happens in KickoffService — children whose ParentSlug
+    // does not match a sibling fall back to the kickoff parent.
+    Slug? ParentSlug = null);

@@ -117,7 +117,7 @@ else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey && _decomposition 
     <section class="ws-section">
         <EditForm Model="_proposalEdits" OnValidSubmit="AcceptDecompositionAsync">
             <table class="run-table">
-                <thead><tr><th>Accept</th><th>Type</th><th>Slug</th><th>Title</th><th>Intent</th></tr></thead>
+                <thead><tr><th>Accept</th><th>Type</th><th>Slug</th><th>Title</th><th>Intent</th><th>Under</th></tr></thead>
                 <tbody>
                     @for (var i = 0; i < _proposalEdits.Children.Count; i++)
                     {
@@ -129,6 +129,7 @@ else if (_step.Key == KickoffWorkflowFactory.DecomposeStepKey && _decomposition 
                             <td><input @bind="c.Slug" /></td>
                             <td><input @bind="c.Title" /></td>
                             <td><input @bind="c.Intent" /></td>
+                            <td>@(string.IsNullOrWhiteSpace(c.ParentSlug) ? "—" : c.ParentSlug)</td>
                         </tr>
                     }
                 </tbody>
@@ -475,11 +476,18 @@ else
                 Slug slug;
                 try { slug = Slug.From(c.Slug.Trim()); }
                 catch { _error = $"Invalid slug '{c.Slug}'."; return; }
+                Slug? parentSlug = null;
+                if (!string.IsNullOrWhiteSpace(c.ParentSlug))
+                {
+                    try { parentSlug = Slug.From(c.ParentSlug.Trim()); }
+                    catch { _error = $"Invalid parent slug '{c.ParentSlug}'."; return; }
+                }
                 accepted.Add(new Loom.Application.Workflows.Kickoff.ProposedChildAcceptance(
                     Slug: slug,
                     Type: c.ParseType(),
                     Title: c.Title.Trim(),
-                    Intent: string.IsNullOrWhiteSpace(c.Intent) ? null : c.Intent.Trim()));
+                    Intent: string.IsNullOrWhiteSpace(c.Intent) ? null : c.Intent.Trim(),
+                    ParentSlug: parentSlug));
             }
 
             // One transactional unit: create children + emit the
@@ -707,7 +715,8 @@ else
                 Slug = c.Slug,
                 Title = c.Title,
                 Intent = c.Intent,
-                Type = c.Type
+                Type = c.Type,
+                ParentSlug = c.ParentSlug
             })]
         };
     }
@@ -719,6 +728,7 @@ else
         public string Title { get; set; } = string.Empty;
         public string? Intent { get; set; }
         public string Type { get; set; } = "Capability";
+        public string? ParentSlug { get; set; }
 
         public NodeType ParseType() => Type?.Trim().ToLowerInvariant() switch
         {

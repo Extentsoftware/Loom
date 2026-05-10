@@ -16,7 +16,12 @@ public sealed record ProposedChild(
     [property: JsonPropertyName("slug")] string Slug,
     [property: JsonPropertyName("title")] string Title,
     [property: JsonPropertyName("type")] string Type,
-    [property: JsonPropertyName("intent")] string? Intent)
+    [property: JsonPropertyName("intent")] string? Intent,
+    // Slug of another proposed child that this one nests under. null /
+    // omitted means top-level (under the kickoff parent). Capabilities
+    // must set this to a Feature's slug; the methodology hierarchy is
+    // initiative ▸ feature ▸ capability ▸ slice.
+    [property: JsonPropertyName("parentSlug")] string? ParentSlug = null)
 {
     public NodeType ParseType() => Type?.Trim().ToLowerInvariant() switch
     {
