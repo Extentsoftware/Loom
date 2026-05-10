@@ -25,22 +25,35 @@ public sealed class KickoffService(
         await using var tx = await uow.BeginTransactionAsync(ct);
         try
         {
-            var childIds = new List<NodeId>(children.Count);
-            foreach (var c in children)
+            // Resolve nesting up front: each acceptance may name a
+            // ParentSlug that points at another acceptance in this batch
+            // (e.g. capabilities nesting under their feature). We sort
+            // topologically — entries whose parent is also being created
+            // here come after that parent — and keep a slug→NodeId map
+            // so children land on the right NodeId. Anything whose
+            // ParentSlug doesn't match a sibling falls back to the
+            // kickoff parentNodeId.
+            var ordered = TopologicalOrder(children);
+            var slugToId = new Dictionary<string, NodeId>(StringComparer.Ordinal);
+            var childIds = new List<NodeId>(ordered.Count);
+            foreach (var c in ordered)
             {
-                ArgumentNullException.ThrowIfNull(c);
                 if (string.IsNullOrWhiteSpace(c.Title))
                 {
                     continue;
                 }
+                var localParent = c.ParentSlug is { } ps && slugToId.TryGetValue(ps.Value, out var pid)
+                    ? pid
+                    : parentNodeId;
                 // CreateChildNodeAsync is idempotent on slug — if a
                 // sibling with this slug already exists the existing
                 // one is returned. So a partial prior accept doesn't
                 // block this one.
                 var node = await features.CreateChildNodeAsync(
-                    parentNodeId, c.Slug, c.Type, c.Title.Trim(), acceptedBy,
+                    localParent, c.Slug, c.Type, c.Title.Trim(), acceptedBy,
                     intent: string.IsNullOrWhiteSpace(c.Intent) ? null : c.Intent.Trim(),
                     ct: ct);
+                slugToId[c.Slug.Value] = node.Id;
                 childIds.Add(node.Id);
             }
 
@@ -67,5 +80,49 @@ public sealed class KickoffService(
             await tx.RollbackAsync(ct);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Order acceptances so that any entry whose ParentSlug matches
+    /// another entry's Slug comes after that entry. Cycles are broken by
+    /// emitting cycle members in their original order; bad pointers are
+    /// tolerated and resolve to the kickoff parent at create-time.
+    /// </summary>
+    private static List<ProposedChildAcceptance> TopologicalOrder(
+        IReadOnlyList<ProposedChildAcceptance> input)
+    {
+        var bySlug = new Dictionary<string, ProposedChildAcceptance>(StringComparer.Ordinal);
+        foreach (var c in input)
+        {
+            ArgumentNullException.ThrowIfNull(c);
+            bySlug[c.Slug.Value] = c;
+        }
+
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var onStack = new HashSet<string>(StringComparer.Ordinal);
+        var ordered = new List<ProposedChildAcceptance>(input.Count);
+
+        void Visit(ProposedChildAcceptance c)
+        {
+            if (!visited.Add(c.Slug.Value))
+            {
+                return;
+            }
+            onStack.Add(c.Slug.Value);
+            if (c.ParentSlug is { } ps
+                && bySlug.TryGetValue(ps.Value, out var parent)
+                && !onStack.Contains(parent.Slug.Value))
+            {
+                Visit(parent);
+            }
+            onStack.Remove(c.Slug.Value);
+            ordered.Add(c);
+        }
+
+        foreach (var c in input)
+        {
+            Visit(c);
+        }
+        return ordered;
     }
 }

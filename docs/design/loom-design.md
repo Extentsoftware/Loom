@@ -133,6 +133,15 @@ Project ───┬─< FeatureNode (recursive: parent_id) >─── Artifact
 ### FeatureNode
 The unit of context. Same shape at every level (initiative / feature / capability / slice). Hierarchy via `parent_id`, type via enum.
 
+The four levels are not interchangeable — each one names a different thing:
+
+- **Initiative** — top-level intent for a project, theme, or quarter outcome. Sits directly under a Project. *"Make checkout faster."*
+- **Feature** — a coherent capability bundle delivered to users; child of an Initiative (or directly under a Project for one-off work). *"Express checkout."*
+- **Capability** — a discrete behaviour or system competence required by a feature; child of a Feature. *"Saved-card surfacing."* Capabilities never sit beside features as peers — if a proposal puts them at the same level, decompose ran wrong.
+- **Slice** — a thin, end-to-end deliverable that exercises one capability; child of a Capability. The unit a developer pair picks up. *"Render saved card on the checkout page (read-only)."*
+
+Decompose steps must respect this nesting: a feature decomposition produces capabilities under that feature, not capability siblings of it.
+
 ```csharp
 public record FeatureNode(
     Guid Id,

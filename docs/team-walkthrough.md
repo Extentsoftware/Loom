@@ -416,8 +416,18 @@ round-trip via Figma and the "we've seen this before" memory.
 
 ## 6. Glossary
 
-- **Node** — a `FeatureNode`, the unit of context (initiative /
-  feature / capability / slice).
+- **Node** — a `FeatureNode`, the unit of context. The hierarchy is
+  strict: **initiative ▸ feature ▸ capability ▸ slice**. Same shape at
+  every level, distinguished by `NodeType`.
+  - **Initiative** — top-level intent for a project, theme, or quarter
+    outcome. Sits directly under a Project.
+  - **Feature** — a coherent capability bundle delivered to users;
+    child of an Initiative.
+  - **Capability** — a discrete behaviour or system competence required
+    by a feature; child of a Feature. Never a peer of a feature.
+  - **Slice** — a thin end-to-end deliverable that exercises one
+    capability; child of a Capability. The unit a developer pair picks
+    up.
 - **Fragment** — a tagged, versioned piece of prompt content. See
   [fragment-library.md](fragment-library.md) for the seeded library.
 - **Run** — a single agent execution against a node, with full

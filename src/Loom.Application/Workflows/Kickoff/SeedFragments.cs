@@ -100,13 +100,20 @@ public static class SeedFragments
               {
                 "children": [
                   {
-                    "slug":   string,   // kebab-case, project-unique
-                    "title":  string,   // noun-shaped, ≤ 60 chars
-                    "type":   string,   // "Initiative" | "Feature" | "Capability" | "Slice"
-                    "intent": string|null  // one sentence; reuses parent's framing
+                    "slug":       string,        // kebab-case, project-unique
+                    "title":      string,        // noun-shaped, ≤ 60 chars
+                    "type":       string,        // "Initiative" | "Feature" | "Capability" | "Slice"
+                    "intent":     string|null,   // one sentence; reuses parent's framing
+                    "parentSlug": string|null    // slug of another child this nests under
                   }
                 ]
               }
+
+            Hierarchy is initiative ▸ feature ▸ capability ▸ slice.
+            Capabilities MUST set parentSlug to the feature they
+            implement. Top-level features set parentSlug to null. Do not
+            output flat lists that mix features and capabilities at the
+            same level.
             """),
 
         new(
@@ -786,10 +793,11 @@ public static class SeedFragments
               {
                 "children": [
                   {
-                    "slug":   string,        // kebab-case, project-unique, ≤ 40 chars
-                    "title":  string,        // noun-shaped, ≤ 60 chars
-                    "type":   string,        // "Capability" for v1; "Slice" only when explicitly asked
-                    "intent": string|null    // one sentence, reuses parent's framing
+                    "slug":       string,        // kebab-case, project-unique, ≤ 40 chars
+                    "title":      string,        // noun-shaped, ≤ 60 chars
+                    "type":       string,        // "Capability" for v1; "Slice" only when explicitly asked
+                    "intent":     string|null,   // one sentence, reuses parent's framing
+                    "parentSlug": string|null    // omit / null when decomposing one feature
                   }
                 ]
               }
@@ -798,6 +806,10 @@ public static class SeedFragments
             - Stop at capability level for v1. Do NOT propose slices
               unless the capability has obvious independent surfaces
               and the team has asked for slice-level decomposition.
+            - When decomposing a single feature, all children are its
+              capabilities and parentSlug stays null. When decomposing
+              a broader scope that includes multiple features, set each
+              capability's parentSlug to its feature's slug.
             - Use the exact lowercase property names above; no
               "description", "name", "summary", or other synonyms.
             - Each child has a noun-shaped title and an intent line
