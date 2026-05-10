@@ -31,8 +31,11 @@ public sealed class OutboxRoundTripTests(MsSqlFixture fixture)
 
         await using (var ctx = fixture.CreateContext())
         {
+            var nodeCreatedType = typeof(NodeCreated).FullName!;
+            var nodeUpdatedType = typeof(NodeUpdated).FullName!;
             var entries = await ctx.Outbox
                 .AsNoTracking()
+                .Where(e => e.EventType == nodeCreatedType || e.EventType == nodeUpdatedType)
                 .OrderBy(e => e.Sequence)
                 .ToListAsync();
 
