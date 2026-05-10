@@ -12,7 +12,11 @@ updates:
       microsoft-extensions:
         patterns: ["Microsoft.Extensions.*"]
       test-stack:
-        patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "FluentAssertions", "Testcontainers*"]
+        patterns: ["xunit*", "Microsoft.NET.Test.Sdk", "Testcontainers*"]
+    ignore:
+      # FluentAssertions 8.x requires a paid license; pin to 7.x.
+      - dependency-name: "FluentAssertions"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
