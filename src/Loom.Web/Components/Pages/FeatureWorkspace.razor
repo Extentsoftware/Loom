@@ -13,11 +13,13 @@
 @inject IFeatureService Features
 @inject IArtifactRepository ArtifactRepo
 @inject Loom.Application.Artifacts.IArtifactService Artifacts
+@inject Loom.Application.Artifacts.IArtifactBlobStore BlobStore
 @inject IWorkflowEngine Engine
 @inject IWorkflowRepository Workflows
 @inject IServiceScopeFactory ScopeFactory
 @inject Loom.Web.Services.CurrentUserAccessor CurrentUser
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>@(_view?.Title ?? "Loading…") · Loom</PageTitle>
 
@@ -402,6 +404,38 @@ else
         </h2>
         @if (_attachingArtifact)
         {
+            <div id="attach-dropzone" class="attach-dropzone @(_attachDropActive ? "is-active" : null)"
+                 @ondragenter:preventDefault @ondragenter="@(_ => _attachDropActive = true)"
+                 @ondragover:preventDefault
+                 @ondragleave="@(_ => _attachDropActive = false)"
+                 @ondrop="@(_ => _attachDropActive = false)">
+                @* Native input absorbs both clicks and drops. Positioned to fill the dropzone via CSS so the visible content shows through but the input still wins for click + drop routing. *@
+                <InputFile OnChange="OnInputFileChangedAsync" class="attach-dropzone-input" title="Drop, paste, or click to attach a file" />
+                <div class="attach-dropzone-content">
+                    @if (_attachUploadBusy)
+                    {
+                        <p class="muted" style="margin:0;">Uploading…</p>
+                    }
+                    else if (_attachUploadedRef is { } r)
+                    {
+                        <p style="margin:0;">
+                            <strong>Uploaded:</strong> @r.Filename
+                            <span class="muted"> · @r.ContentType · @FormatBytes(r.SizeBytes)</span>
+                            <button class="btn-link" type="button" @onclick="ClearUploadedRef" style="margin-left:.5rem; position:relative; z-index:2;">clear</button>
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="muted" style="margin:0;">
+                            Drop a file, paste an image, or click to choose.
+                        </p>
+                    }
+                    @if (!string.IsNullOrEmpty(_attachUploadError))
+                    {
+                        <p class="error" style="margin:.25rem 0 0 0;">@_attachUploadError</p>
+                    }
+                </div>
+            </div>
             <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:.5rem; margin-bottom:.5rem;">
                 <label>
                     Title
@@ -536,6 +570,20 @@ else
     private string? _attachError;
     private AttachArtifactDraft _attachDraft = new();
 
+    // Drop / paste upload state. _attachUploadedRef carries metadata
+    // back to the attach form so the Attach button can wire the
+    // resulting blob URI into the canonical pointer.
+    private bool _attachDropActive;
+    private bool _attachUploadBusy;
+    private string? _attachUploadError;
+    private UploadedRef? _attachUploadedRef;
+    private DotNetObjectReference<FeatureWorkspace>? _selfRef;
+    private bool _pasteListenerAttached;
+
+    // Hard caps so a misbehaving file doesn't OOM the server. Tune
+    // alongside ProjectArtifactsPanel and any future uploaders.
+    private const long MaxUploadBytes = 25 * 1024 * 1024;
+
     private sealed class AttachArtifactDraft
     {
         public string Title { get; set; } = string.Empty;
@@ -544,6 +592,8 @@ else
         public string Url { get; set; } = string.Empty;
         public string ExternalId { get; set; } = string.Empty;
     }
+
+    private sealed record UploadedRef(string Uri, string Filename, string ContentType, long? SizeBytes);
 
     private bool _editingOutcomes;
     private List<OutcomeDraft> _outcomeDrafts = [];
@@ -599,6 +649,30 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Wire the paste listener whenever the attach dropzone is on
+        // the page. Cheap to attach repeatedly — the JS module
+        // dedupes by element.
+        if (_attachingArtifact && !_pasteListenerAttached)
+        {
+            try
+            {
+                _selfRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("import", "/js/attach-paste.js");
+                await JS.InvokeVoidAsync("loomAttachPaste", "attach-dropzone", _selfRef, "OnImagePastedAsync");
+                _pasteListenerAttached = true;
+            }
+            catch
+            {
+                // Paste support is best-effort; drop + file-picker still work.
+            }
+        }
+        if (!_attachingArtifact && _pasteListenerAttached)
+        {
+            try { await JS.InvokeVoidAsync("loomAttachPasteOff", "attach-dropzone"); }
+            catch { /* ignore */ }
+            _pasteListenerAttached = false;
+        }
+
         if (firstRender && _hub is null)
         {
             _hub = new HubConnectionBuilder()
@@ -630,6 +704,12 @@ else
             try { await _hub.SendAsync("LeaveNode", NodeId); } catch { /* ignore */ }
             await _hub.DisposeAsync();
         }
+        if (_pasteListenerAttached)
+        {
+            try { await JS.InvokeVoidAsync("loomAttachPasteOff", "attach-dropzone"); }
+            catch { /* ignore */ }
+        }
+        _selfRef?.Dispose();
     }
 
     // SignalR notifications can race the page's own LoadAsync (originated
@@ -888,7 +968,98 @@ else
         {
             _attachDraft = new AttachArtifactDraft();
             _attachError = null;
+            _attachUploadError = null;
+            _attachUploadedRef = null;
         }
+        else
+        {
+            _attachUploadedRef = null;
+            _attachUploadError = null;
+        }
+    }
+
+    /// <summary>
+    /// Forwarded by the JS paste listener (see /js/attach-paste.js).
+    /// Receives the pasted image as base64 because Blazor Server's JS
+    /// interop for raw byte arrays is awkward and base64 is small
+    /// enough at the 25 MB cap we apply.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnImagePastedAsync(string filename, string contentType, string base64)
+    {
+        try
+        {
+            var bytes = Convert.FromBase64String(base64);
+            await UploadBundleAsync(filename, contentType, bytes);
+        }
+        catch (FormatException)
+        {
+            _attachUploadError = "Pasted content was not a valid image.";
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnInputFileChangedAsync(InputFileChangeEventArgs e)
+    {
+        var f = e.File;
+        if (f is null) return;
+        await IngestBrowserFileAsync(f);
+    }
+
+    private async Task IngestBrowserFileAsync(IBrowserFile file)
+    {
+        if (file.Size > MaxUploadBytes)
+        {
+            _attachUploadError = $"File is too large ({FormatBytes(file.Size)}). Max is {FormatBytes(MaxUploadBytes)}.";
+            return;
+        }
+        await using var stream = file.OpenReadStream(MaxUploadBytes);
+        using var ms = new MemoryStream(capacity: (int)Math.Min(file.Size, MaxUploadBytes));
+        await stream.CopyToAsync(ms);
+        await UploadBundleAsync(file.Name, string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType, ms.ToArray());
+    }
+
+    private async Task UploadBundleAsync(string filename, string contentType, byte[] bytes)
+    {
+        _attachUploadBusy = true;
+        _attachUploadError = null;
+        try
+        {
+            var bundle = new Loom.Application.Artifacts.ArtifactBundle(
+                [new Loom.Application.Artifacts.ArtifactFile(filename, contentType, bytes)]);
+            var blobRef = await BlobStore.PutAsync(bundle);
+
+            _attachUploadedRef = new UploadedRef(blobRef.Uri, filename, contentType, blobRef.SizeBytes);
+            _attachDraft.Store = Loom.Domain.Artifacts.CanonicalStore.HubNative;
+            _attachDraft.Url = blobRef.Uri;
+            if (string.IsNullOrWhiteSpace(_attachDraft.Title))
+            {
+                _attachDraft.Title = Path.GetFileNameWithoutExtension(filename);
+            }
+        }
+        catch (Exception ex)
+        {
+            _attachUploadError = ex.Message;
+        }
+        finally
+        {
+            _attachUploadBusy = false;
+        }
+    }
+
+    private void ClearUploadedRef()
+    {
+        _attachUploadedRef = null;
+        _attachDraft.Url = string.Empty;
+    }
+
+    private static string FormatBytes(long? bytes)
+    {
+        if (bytes is null) return "?";
+        var b = bytes.Value;
+        if (b < 1024) return $"{b} B";
+        if (b < 1024 * 1024) return $"{b / 1024.0:0.#} KB";
+        return $"{b / (1024.0 * 1024.0):0.##} MB";
     }
 
     private async Task SaveAttachAsync()

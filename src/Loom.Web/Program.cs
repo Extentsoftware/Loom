@@ -112,7 +112,11 @@ builder.Services.AddLoomIntegrations();
 // ─── Blazor Server with interactive Server components ──────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddSignalR();
+// 32 KB default kills the Blazor circuit when the artifact attach
+// dropzone forwards a pasted image as base64. Cap matches the
+// 25 MB upload limit enforced server-side, with headroom for base64
+// expansion and the JSON envelope.
+builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 64 * 1024 * 1024);
 builder.Services.AddControllers();
 
 // ─── HTTP plumbing ─────────────────────────────────────────────────────
