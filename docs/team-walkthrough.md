@@ -87,7 +87,21 @@ lands in OneDrive automatically.
 
 Andy opens [Kickoff](src/Loom.Web/Components/Pages/Kickoff.razor) at
 `/kickoff`, picks the **Marketplace** project, pastes the transcript
-into the box, and hits *Start*. The kickoff workflow runs three stages:
+and hits *Analyse*. A scope classifier reads the transcript and
+suggests a mode:
+
+- **Single feature** — the conversation is about one feature, even if
+  several capabilities are mentioned. Root is a `Feature`, decompose
+  produces capabilities under it.
+- **Multi-feature initiative** — the conversation covers two or more
+  independently-shippable features. Root is an `Initiative`, decompose
+  returns a tree of features (each with their capabilities).
+
+For Express Checkout it picks **Single** (high confidence). Andy
+clicks the button to start the workflow. If the transcript had
+covered checkout *and* saved-card *and* fraud panels, the suggestion
+would be **Multi** and Andy would see them listed for confirmation.
+The kickoff workflow then runs three stages:
 
 1. **`normalize`** — In-proc transcript splitter into turn objects.
    Auto, ~50 ms. No tokens.

@@ -15,11 +15,13 @@ public sealed class KickoffService(
 {
     public async Task<IReadOnlyList<NodeId>> AcceptDecompositionAsync(
         RunId gateRunId,
+        string gateStepKey,
         NodeId parentNodeId,
         IReadOnlyList<ProposedChildAcceptance> children,
         Guid acceptedBy,
         CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(gateStepKey);
         ArgumentNullException.ThrowIfNull(children);
 
         await using var tx = await uow.BeginTransactionAsync(ct);
@@ -70,7 +72,7 @@ public sealed class KickoffService(
             // further agent steps to fire (decompose is the last step
             // in the kickoff workflow), so this stays short-running.
             await engine.ResolveGateAsync(
-                gateRunId, KickoffWorkflowFactory.DecomposeStepKey, acceptedBy, edits: null, ct);
+                gateRunId, gateStepKey, acceptedBy, edits: null, ct);
 
             await tx.CommitAsync(ct);
             return childIds;

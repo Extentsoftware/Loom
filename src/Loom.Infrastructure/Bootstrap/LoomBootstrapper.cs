@@ -151,6 +151,12 @@ public sealed class LoomBootstrapper(
             ct);
 
         await SeedIfMissingAsync(workflows, uow,
+            Application.Workflows.Kickoff.KickoffMultiWorkflowFactory.WorkflowKey,
+            Application.Workflows.Kickoff.KickoffMultiWorkflowFactory.CurrentVersion,
+            () => Application.Workflows.Kickoff.KickoffMultiWorkflowFactory.Build(clock.UtcNow),
+            ct);
+
+        await SeedIfMissingAsync(workflows, uow,
             Application.Workflows.Enrichment.EnrichmentWorkflowFactory.WorkflowKey,
             Application.Workflows.Enrichment.EnrichmentWorkflowFactory.CurrentVersion,
             () => Application.Workflows.Enrichment.EnrichmentWorkflowFactory.Build(clock.UtcNow),
