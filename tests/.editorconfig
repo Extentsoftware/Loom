@@ -1,0 +1,6 @@
+[*.cs]
+# Test code may legitimately keep usings around for clarity, omit explicit
+# CancellationTokens, and follow xUnit's "Collection"-suffix convention.
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.xUnit1051.severity = none
+dotnet_diagnostic.CA1711.severity = none

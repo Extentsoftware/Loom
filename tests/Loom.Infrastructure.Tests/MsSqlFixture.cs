@@ -11,8 +11,7 @@ namespace Loom.Infrastructure.Tests;
 /// </summary>
 public sealed class MsSqlFixture : IAsyncLifetime
 {
-    private readonly MsSqlContainer _container = new MsSqlBuilder()
-        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+    private readonly MsSqlContainer _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
         .WithPassword("Loom_Test_Pa55word!")
         .Build();
 
