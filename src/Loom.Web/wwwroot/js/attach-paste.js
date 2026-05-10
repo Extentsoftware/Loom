@@ -20,7 +20,15 @@
     }
 
     window.loomAttachPaste = function (elementId, dotNetRef, methodName) {
-        if (listeners.has(elementId)) return;
+        // If an older listener is still attached (e.g. the Blazor
+        // circuit reconnected and the previous DotNetObjectReference
+        // is now stale), tear it down before installing the new one
+        // so paste events go to the live circuit.
+        const existing = listeners.get(elementId);
+        if (existing) {
+            window.removeEventListener('paste', existing.handler, true);
+            listeners.delete(elementId);
+        }
 
         const handler = async function (ev) {
             const items = ev.clipboardData && ev.clipboardData.items;
