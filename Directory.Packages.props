@@ -31,7 +31,7 @@
     <!-- Web / auth -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.7" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.Identity.Web" Version="4.9.0" />
+    <PackageVersion Include="Microsoft.Identity.Web" Version="4.13.2" />
     <PackageVersion Include="Microsoft.Identity.Web.UI" Version="4.9.0" />
     <!-- Agent runtimes -->
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.7" />
